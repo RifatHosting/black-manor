@@ -1,0 +1,3918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Last Resident of Blackwood Manor</title>
+<style>
+  /* ============================================================
+     GLOBAL STYLES & CSS VARIABLES
+  ============================================================ */
+  :root {
+    --blood: #8b0000;
+    --ash: #1a1a1a;
+    --bone: #c8b89a;
+    --fog: rgba(20,20,30,0.95);
+    --text-horror: #c8b89a;
+    --ui-red: #ff2222;
+    --sanity-color: #4a9eff;
+    --font-title: 'IM Fell English', Georgia, serif;
+    --font-body: 'Crimson Text', Georgia, serif;
+    --font-ui: 'Courier New', monospace;
+  }
+
+  @import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: var(--font-body);
+    color: var(--text-horror);
+    user-select: none;
+    cursor: none;
+  }
+
+  #game-canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+  }
+
+  /* ============================================================
+     CUSTOM CURSOR
+  ============================================================ */
+  #cursor {
+    position: fixed;
+    width: 16px; height: 16px;
+    border: 1px solid rgba(200,184,154,0.6);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%,-50%);
+    transition: width 0.2s, height 0.2s, border-color 0.2s;
+  }
+  #cursor.interact {
+    width: 28px; height: 28px;
+    border-color: var(--bone);
+    box-shadow: 0 0 8px rgba(200,184,154,0.4);
+  }
+  #cursor-dot {
+    position: fixed;
+    width: 3px; height: 3px;
+    background: var(--bone);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%,-50%);
+  }
+
+  /* ============================================================
+     VIGNETTE OVERLAY
+  ============================================================ */
+  #vignette {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%);
+    pointer-events: none;
+    z-index: 10;
+    transition: opacity 1s;
+  }
+
+  /* ============================================================
+     FILM GRAIN OVERLAY
+  ============================================================ */
+  #grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 11;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    animation: grain-anim 0.1s steps(1) infinite;
+  }
+  @keyframes grain-anim {
+    0%   { transform: translate(0,0); }
+    10%  { transform: translate(-2%,-3%); }
+    20%  { transform: translate(3%,2%); }
+    30%  { transform: translate(-1%,4%); }
+    40%  { transform: translate(4%,-1%); }
+    50%  { transform: translate(-3%,1%); }
+    60%  { transform: translate(1%,-4%); }
+    70%  { transform: translate(-4%,3%); }
+    80%  { transform: translate(2%,-2%); }
+    90%  { transform: translate(-2%,3%); }
+    100% { transform: translate(3%,-3%); }
+  }
+
+  /* ============================================================
+     CHROMATIC ABERRATION OVERLAY
+  ============================================================ */
+  #chroma {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 12;
+    opacity: 0;
+    background: transparent;
+    mix-blend-mode: screen;
+    transition: opacity 0.5s;
+  }
+
+  /* ============================================================
+     SANITY DISTORTION
+  ============================================================ */
+  #sanity-overlay {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 13;
+    opacity: 0;
+    background: radial-gradient(ellipse, transparent 50%, rgba(100,0,0,0.3) 100%);
+    animation: sanity-pulse 3s ease-in-out infinite;
+  }
+  @keyframes sanity-pulse {
+    0%,100% { opacity: 0; }
+    50% { opacity: 1; }
+  }
+
+  /* ============================================================
+     BLOODSTAIN EFFECTS
+  ============================================================ */
+  .blood-splatter {
+    position: fixed;
+    pointer-events: none;
+    z-index: 14;
+    opacity: 0;
+    font-size: 200px;
+    color: rgba(139,0,0,0.15);
+    animation: blood-fade 4s ease-out forwards;
+  }
+  @keyframes blood-fade {
+    0% { opacity: 0.5; transform: scale(0.8); }
+    100% { opacity: 0; transform: scale(1.2); }
+  }
+
+  /* ============================================================
+     MAIN MENU
+  ============================================================ */
+  #main-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    overflow: hidden;
+  }
+
+  #menu-bg-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%; height: 100%;
+  }
+
+  #menu-fog {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(0,0,0,0.3) 0%,
+      rgba(5,0,10,0.6) 40%,
+      rgba(0,0,0,0.95) 100%
+    );
+    pointer-events: none;
+  }
+
+  #menu-content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  #menu-subtitle {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    letter-spacing: 5px;
+    color: rgba(200,184,154,0.5);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    animation: fade-in 2s ease-out 0.5s both;
+  }
+
+  #menu-title {
+    font-family: var(--font-title);
+    font-size: clamp(28px, 5vw, 62px);
+    color: var(--bone);
+    line-height: 1.1;
+    text-shadow:
+      0 0 30px rgba(139,0,0,0.8),
+      0 0 60px rgba(139,0,0,0.4),
+      0 2px 4px rgba(0,0,0,0.9);
+    animation: title-emerge 3s ease-out 1s both;
+    max-width: 800px;
+    letter-spacing: 2px;
+  }
+
+  @keyframes title-emerge {
+    0% { opacity: 0; transform: translateY(20px); filter: blur(10px); }
+    100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+  }
+
+  #menu-divider {
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(139,0,0,0.8), transparent);
+    margin: 16px 0;
+    animation: fade-in 2s ease-out 2s both;
+  }
+
+  #menu-quote {
+    font-family: var(--font-title);
+    font-style: italic;
+    font-size: 14px;
+    color: rgba(200,184,154,0.55);
+    max-width: 400px;
+    line-height: 1.6;
+    animation: fade-in 2s ease-out 2.5s both;
+    margin-bottom: 32px;
+  }
+
+  .menu-btn {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--bone);
+    background: transparent;
+    border: 1px solid rgba(200,184,154,0.25);
+    padding: 12px 40px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    min-width: 220px;
+    animation: fade-in 1.5s ease-out both;
+  }
+
+  .menu-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(139,0,0,0.15);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+  }
+
+  .menu-btn:hover::before { transform: scaleX(1); }
+  .menu-btn:hover {
+    border-color: rgba(200,184,154,0.7);
+    color: #fff;
+    box-shadow: 0 0 15px rgba(139,0,0,0.4);
+    text-shadow: 0 0 8px rgba(200,184,154,0.6);
+  }
+
+  #btn-start { animation-delay: 3s; }
+  #btn-controls { animation-delay: 3.2s; }
+  #btn-credits { animation-delay: 3.4s; }
+
+  #menu-warning {
+    position: absolute;
+    bottom: 32px;
+    font-family: var(--font-ui);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: rgba(139,0,0,0.6);
+    text-transform: uppercase;
+    animation: fade-in 2s ease-out 4s both;
+  }
+
+  /* ============================================================
+     LOADING SCREEN
+  ============================================================ */
+  #loading-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background: #000;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  #loading-title {
+    font-family: var(--font-title);
+    font-size: 18px;
+    letter-spacing: 3px;
+    color: rgba(200,184,154,0.6);
+    text-transform: uppercase;
+  }
+
+  #loading-bar-wrap {
+    width: 300px;
+    height: 1px;
+    background: rgba(200,184,154,0.1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  #loading-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--blood), var(--bone));
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px rgba(139,0,0,0.8);
+  }
+
+  #loading-tip {
+    font-family: var(--font-title);
+    font-style: italic;
+    font-size: 12px;
+    color: rgba(200,184,154,0.35);
+    max-width: 350px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  /* ============================================================
+     HUD (Heads Up Display)
+  ============================================================ */
+  #hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    display: none;
+  }
+
+  /* Crosshair */
+  #crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px; height: 20px;
+  }
+  #crosshair::before, #crosshair::after {
+    content: '';
+    position: absolute;
+    background: rgba(200,184,154,0.5);
+  }
+  #crosshair::before {
+    width: 1px; height: 8px;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  #crosshair::after {
+    width: 8px; height: 1px;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  #crosshair.interact-hint::before,
+  #crosshair.interact-hint::after {
+    background: rgba(200,184,154,0.9);
+    box-shadow: 0 0 4px rgba(200,184,154,0.6);
+  }
+
+  /* Interact prompt */
+  #interact-prompt {
+    position: absolute;
+    top: calc(50% + 28px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(200,184,154,0.8);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.2s;
+    text-shadow: 0 0 8px rgba(0,0,0,0.9);
+    white-space: nowrap;
+  }
+  #interact-prompt.visible { opacity: 1; }
+
+  /* Flashlight battery */
+  #flashlight-hud {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
+  #battery-label {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: rgba(200,184,154,0.4);
+    text-transform: uppercase;
+  }
+  #battery-bar-wrap {
+    width: 60px; height: 3px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(200,184,154,0.2);
+  }
+  #battery-bar {
+    height: 100%;
+    background: var(--bone);
+    width: 100%;
+    transition: width 1s linear, background 0.5s;
+  }
+  #battery-bar.low {
+    background: var(--ui-red);
+    animation: battery-flicker 1s ease-in-out infinite;
+  }
+  @keyframes battery-flicker {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Sanity meter */
+  #sanity-hud {
+    position: absolute;
+    bottom: 40px;
+    left: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  #sanity-label {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: rgba(200,184,154,0.4);
+    text-transform: uppercase;
+  }
+  #sanity-bar-wrap {
+    width: 60px; height: 3px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(200,184,154,0.2);
+  }
+  #sanity-bar {
+    height: 100%;
+    background: var(--sanity-color);
+    width: 100%;
+    transition: width 0.5s ease, background 0.5s;
+  }
+  #sanity-bar.low { background: #ff4444; }
+
+  /* Chapter display */
+  #chapter-display {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-title);
+    font-style: italic;
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: rgba(200,184,154,0.5);
+    opacity: 0;
+    transition: opacity 1s;
+    text-align: center;
+    white-space: nowrap;
+  }
+  #chapter-display.visible { opacity: 1; }
+
+  /* Inventory */
+  #inventory {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+  }
+  .inv-slot {
+    width: 44px; height: 44px;
+    border: 1px solid rgba(200,184,154,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    position: relative;
+    background: rgba(0,0,0,0.4);
+    transition: border-color 0.2s;
+  }
+  .inv-slot.active { border-color: rgba(200,184,154,0.7); }
+  .inv-slot-label {
+    position: absolute;
+    bottom: -16px;
+    font-family: var(--font-ui);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: rgba(200,184,154,0.3);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* ============================================================
+     NOTE READING UI
+  ============================================================ */
+  #note-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(4px);
+  }
+  #note-overlay.visible { display: flex; }
+
+  #note-paper {
+    max-width: 520px;
+    width: 90%;
+    background: linear-gradient(160deg, #1a1510 0%, #0f0c09 100%);
+    border: 1px solid rgba(200,184,154,0.15);
+    padding: 48px 52px;
+    position: relative;
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.5),
+      0 30px 80px rgba(0,0,0,0.8),
+      inset 0 1px 0 rgba(200,184,154,0.1);
+    animation: note-appear 0.5s ease-out;
+  }
+
+  @keyframes note-appear {
+    0% { opacity: 0; transform: translateY(20px) rotate(-0.5deg); }
+    100% { opacity: 1; transform: translateY(0) rotate(0deg); }
+  }
+
+  #note-paper::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23paper)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  #note-number {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: rgba(139,0,0,0.7);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  #note-title {
+    font-family: var(--font-title);
+    font-size: 22px;
+    color: var(--bone);
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(200,184,154,0.1);
+    line-height: 1.3;
+  }
+
+  #note-text {
+    font-family: var(--font-title);
+    font-style: italic;
+    font-size: 14px;
+    line-height: 1.9;
+    color: rgba(200,184,154,0.75);
+    white-space: pre-line;
+  }
+
+  #note-close {
+    position: absolute;
+    top: 20px; right: 24px;
+    font-family: var(--font-ui);
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: rgba(200,184,154,0.3);
+    cursor: pointer;
+    transition: color 0.2s;
+    pointer-events: all;
+    text-transform: uppercase;
+  }
+  #note-close:hover { color: var(--bone); }
+
+  #note-date {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: rgba(200,184,154,0.3);
+    margin-top: 24px;
+    text-align: right;
+  }
+
+  /* ============================================================
+     NARRATIVE TEXT (Story beats)
+  ============================================================ */
+  #narrative-overlay {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
+    max-width: 600px;
+    width: 90%;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  #narrative-text {
+    font-family: var(--font-title);
+    font-style: italic;
+    font-size: 16px;
+    line-height: 1.7;
+    color: rgba(200,184,154,0.9);
+    text-shadow: 0 2px 20px rgba(0,0,0,0.9), 0 0 40px rgba(0,0,0,0.7);
+    opacity: 0;
+    transition: opacity 1s ease;
+  }
+  #narrative-text.visible { opacity: 1; }
+
+  /* ============================================================
+     JUMPSCARE OVERLAY
+  ============================================================ */
+  #jumpscare-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    pointer-events: none;
+    opacity: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  #jumpscare-image {
+    font-size: 40vw;
+    opacity: 0.9;
+    filter: contrast(2) brightness(0.3);
+    animation: none;
+    transform: scale(0.8);
+    line-height: 1;
+  }
+
+  @keyframes jumpscare-flash {
+    0%   { opacity: 0; transform: scale(0.8) rotate(-2deg); filter: brightness(4) contrast(3); }
+    5%   { opacity: 1; transform: scale(1.15) rotate(1deg); filter: brightness(0.1) contrast(5); }
+    15%  { opacity: 0.9; transform: scale(1.0) rotate(-1deg); filter: brightness(0.3) contrast(3); }
+    30%  { opacity: 0.7; transform: scale(1.05) rotate(0.5deg); filter: brightness(0.2) contrast(4); }
+    60%  { opacity: 0.3; transform: scale(1.0) rotate(0deg); filter: brightness(0.1); }
+    100% { opacity: 0; transform: scale(0.95); filter: brightness(0); }
+  }
+
+  #jumpscare-flash-white {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 499;
+  }
+
+  @keyframes white-flash {
+    0%,100% { opacity: 0; }
+    2% { opacity: 1; }
+    8% { opacity: 0; }
+  }
+
+  /* ============================================================
+     HEARTBEAT VISUAL
+  ============================================================ */
+  #heartbeat-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(ellipse, transparent 60%, rgba(139,0,0,0.4) 100%);
+  }
+
+  /* ============================================================
+     CHAPTER TITLES
+  ============================================================ */
+  #chapter-title-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: rgba(0,0,0,0);
+    gap: 12px;
+  }
+  #chapter-title-screen.visible {
+    display: flex;
+  }
+
+  #chapter-roman {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    letter-spacing: 8px;
+    color: rgba(139,0,0,0.7);
+    text-transform: uppercase;
+    animation: chapter-fade 5s ease-in-out forwards;
+  }
+  #chapter-name {
+    font-family: var(--font-title);
+    font-size: clamp(32px, 6vw, 72px);
+    color: var(--bone);
+    letter-spacing: 4px;
+    text-shadow: 0 0 40px rgba(139,0,0,0.5);
+    animation: chapter-fade 5s ease-in-out forwards;
+  }
+  #chapter-tagline {
+    font-family: var(--font-title);
+    font-style: italic;
+    font-size: 14px;
+    color: rgba(200,184,154,0.4);
+    animation: chapter-fade 5s ease-in-out forwards;
+    animation-delay: 0.5s;
+  }
+
+  @keyframes chapter-fade {
+    0%   { opacity: 0; transform: translateY(8px); }
+    20%  { opacity: 1; transform: translateY(0); }
+    70%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* ============================================================
+     ENDING SCREENS
+  ============================================================ */
+  #ending-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 800;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    gap: 20px;
+    padding: 40px;
+  }
+
+  #ending-screen.visible { display: flex; }
+
+  #ending-label {
+    font-family: var(--font-ui);
+    font-size: 9px;
+    letter-spacing: 6px;
+    color: rgba(139,0,0,0.6);
+    text-transform: uppercase;
+    animation: fade-in 2s ease-out both;
+  }
+  #ending-title {
+    font-family: var(--font-title);
+    font-size: clamp(28px, 5vw, 56px);
+    color: var(--bone);
+    text-shadow: 0 0 30px rgba(139,0,0,0.6);
+    animation: fade-in 2s ease-out 0.5s both;
+    text-align: center;
+  }
+  #ending-text {
+    font-family: var(--font-title);
+    font-style: italic;
+    font-size: 15px;
+    color: rgba(200,184,154,0.6);
+    max-width: 500px;
+    text-align: center;
+    line-height: 1.8;
+    animation: fade-in 2s ease-out 1.5s both;
+  }
+  #ending-divider {
+    width: 150px; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(139,0,0,0.5), transparent);
+    animation: fade-in 2s ease-out 2s both;
+  }
+  #ending-footer {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: rgba(200,184,154,0.25);
+    text-transform: uppercase;
+    animation: fade-in 2s ease-out 3s both;
+  }
+  #ending-restart {
+    margin-top: 20px;
+    animation: fade-in 2s ease-out 4s both;
+  }
+
+  /* ============================================================
+     PAUSE MENU
+  ============================================================ */
+  #pause-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: rgba(0,0,0,0.8);
+    backdrop-filter: blur(6px) grayscale(0.3);
+    gap: 16px;
+  }
+  #pause-menu.visible { display: flex; }
+
+  #pause-title {
+    font-family: var(--font-title);
+    font-size: 42px;
+    color: var(--bone);
+    letter-spacing: 4px;
+    text-shadow: 0 0 20px rgba(139,0,0,0.4);
+    margin-bottom: 16px;
+  }
+
+  /* ============================================================
+     CONTROLS MODAL
+  ============================================================ */
+  #controls-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 700;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.9);
+  }
+  #controls-modal.visible { display: flex; }
+
+  #controls-box {
+    background: linear-gradient(160deg, #1a1510, #0f0c09);
+    border: 1px solid rgba(200,184,154,0.15);
+    padding: 48px 60px;
+    max-width: 480px;
+    width: 90%;
+  }
+  #controls-box h2 {
+    font-family: var(--font-title);
+    font-size: 28px;
+    color: var(--bone);
+    margin-bottom: 32px;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  .control-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(200,184,154,0.07);
+    gap: 24px;
+  }
+  .control-key {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(200,184,154,0.5);
+    background: rgba(200,184,154,0.08);
+    padding: 4px 10px;
+    border: 1px solid rgba(200,184,154,0.15);
+    white-space: nowrap;
+  }
+  .control-desc {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: rgba(200,184,154,0.6);
+    text-align: right;
+  }
+
+  /* ============================================================
+     GHOST DETECTION INDICATOR
+  ============================================================ */
+  #ghost-indicator {
+    position: fixed;
+    top: 40px; right: 40px;
+    font-family: var(--font-ui);
+    font-size: 8px;
+    letter-spacing: 3px;
+    color: rgba(139,0,0,0);
+    text-transform: uppercase;
+    transition: color 0.3s;
+    pointer-events: none;
+    z-index: 50;
+  }
+  #ghost-indicator.active {
+    color: rgba(139,0,0,0.8);
+    animation: ghost-flicker 0.5s ease-in-out infinite;
+  }
+  @keyframes ghost-flicker {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* ============================================================
+     UTILITY
+  ============================================================ */
+  @keyframes fade-in {
+    0% { opacity: 0; transform: translateY(6px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  .hidden { display: none !important; }
+
+  #fps-counter {
+    position: fixed;
+    top: 12px; left: 12px;
+    font-family: var(--font-ui);
+    font-size: 9px;
+    color: rgba(200,184,154,0.2);
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  /* Noise scanline effect */
+  #scanlines {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    opacity: 0.5;
+  }
+
+  /* Transition screen */
+  #black-fade {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+  }
+  #black-fade.fade-in { opacity: 1; pointer-events: all; }
+  #black-fade.fade-out { opacity: 0; pointer-events: none; }
+
+  /* Cursor lock hint */
+  #lock-hint {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 500;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+  }
+  #lock-hint.visible { display: flex; }
+  #lock-hint p {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: rgba(200,184,154,0.5);
+    text-transform: uppercase;
+    text-align: center;
+  }
+  #lock-hint .click-hint {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: rgba(139,0,0,0.5);
+    animation: fade-in 1s ease-out 1.5s both;
+  }
+</style>
+</head>
+<body>
+
+<!-- Custom cursor -->
+<div id="cursor"></div>
+<div id="cursor-dot"></div>
+
+<!-- Visual overlays -->
+<div id="vignette"></div>
+<div id="grain"></div>
+<div id="chroma"></div>
+<div id="scanlines"></div>
+<div id="sanity-overlay"></div>
+<div id="heartbeat-overlay"></div>
+<div id="black-fade"></div>
+
+<!-- Game canvas -->
+<canvas id="game-canvas"></canvas>
+
+<!-- FPS -->
+<div id="fps-counter">60 FPS</div>
+
+<!-- Ghost indicator -->
+<div id="ghost-indicator">◈ PRESENCE DETECTED</div>
+
+<!-- ============================================================
+     MAIN MENU
+============================================================ -->
+<div id="main-menu">
+  <canvas id="menu-bg-canvas"></canvas>
+  <div id="menu-fog"></div>
+  <div id="menu-content">
+    <div id="menu-subtitle">A Horror Experience</div>
+    <div id="menu-title">The Last Resident<br>of Blackwood Manor</div>
+    <div id="menu-divider"></div>
+    <div id="menu-quote">"Some doors, once opened, cannot be closed again. Some secrets, once learned, cannot be forgotten."</div>
+    <button class="menu-btn" id="btn-start">Enter the Manor</button>
+    <button class="menu-btn" id="btn-controls" style="animation-delay:3.2s">Controls</button>
+  </div>
+  <div id="menu-warning">⚠ Contains disturbing imagery · Headphones recommended · Play in darkness</div>
+</div>
+
+<!-- ============================================================
+     LOADING SCREEN
+============================================================ -->
+<div id="loading-screen">
+  <div id="loading-title">Descending into Blackwood</div>
+  <div id="loading-bar-wrap">
+    <div id="loading-bar"></div>
+  </div>
+  <div id="loading-tip" id="loading-tip-text">The manor has been empty for 47 years. No one knows why the last resident never left.</div>
+</div>
+
+<!-- ============================================================
+     HUD
+============================================================ -->
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="interact-prompt"></div>
+  <div id="chapter-display"></div>
+
+  <div id="flashlight-hud">
+    <div id="battery-label">Battery</div>
+    <div id="battery-bar-wrap">
+      <div id="battery-bar"></div>
+    </div>
+  </div>
+
+  <div id="sanity-hud">
+    <div id="sanity-label">Sanity</div>
+    <div id="sanity-bar-wrap">
+      <div id="sanity-bar"></div>
+    </div>
+  </div>
+
+  <div id="inventory">
+    <div class="inv-slot" id="slot-0"><span id="slot-0-icon"></span><div class="inv-slot-label">I</div></div>
+    <div class="inv-slot" id="slot-1"><span id="slot-1-icon"></span><div class="inv-slot-label">II</div></div>
+    <div class="inv-slot" id="slot-2"><span id="slot-2-icon"></span><div class="inv-slot-label">III</div></div>
+  </div>
+
+  <div id="narrative-overlay">
+    <div id="narrative-text"></div>
+  </div>
+</div>
+
+<!-- Jumpscare -->
+<div id="jumpscare-overlay">
+  <div id="jumpscare-image"></div>
+</div>
+<div id="jumpscare-flash-white"></div>
+
+<!-- Chapter titles -->
+<div id="chapter-title-screen">
+  <div id="chapter-roman"></div>
+  <div id="chapter-name"></div>
+  <div id="chapter-tagline"></div>
+</div>
+
+<!-- ============================================================
+     NOTE OVERLAY
+============================================================ -->
+<div id="note-overlay">
+  <div id="note-paper">
+    <div id="note-number"></div>
+    <div id="note-title"></div>
+    <div id="note-text"></div>
+    <div id="note-date"></div>
+    <div id="note-close">[E] Close</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     LOCK HINT
+============================================================ -->
+<div id="lock-hint">
+  <p>Click to capture mouse</p>
+  <p class="click-hint">ESC to pause · F to toggle flashlight</p>
+</div>
+
+<!-- ============================================================
+     PAUSE MENU
+============================================================ -->
+<div id="pause-menu">
+  <div id="pause-title">Paused</div>
+  <button class="menu-btn" id="btn-resume">Continue</button>
+  <button class="menu-btn" id="btn-controls-pause" style="animation:none">Controls</button>
+  <button class="menu-btn" id="btn-quit" style="animation:none">Return to Menu</button>
+</div>
+
+<!-- ============================================================
+     CONTROLS MODAL
+============================================================ -->
+<div id="controls-modal">
+  <div id="controls-box">
+    <h2>Controls</h2>
+    <div class="control-row">
+      <span class="control-key">WASD</span>
+      <span class="control-desc">Move</span>
+    </div>
+    <div class="control-row">
+      <span class="control-key">Mouse</span>
+      <span class="control-desc">Look Around</span>
+    </div>
+    <div class="control-row">
+      <span class="control-key">E</span>
+      <span class="control-desc">Interact / Read Note</span>
+    </div>
+    <div class="control-row">
+      <span class="control-key">F</span>
+      <span class="control-desc">Toggle Flashlight</span>
+    </div>
+    <div class="control-row">
+      <span class="control-key">ESC</span>
+      <span class="control-desc">Pause Menu</span>
+    </div>
+    <div class="control-row">
+      <span class="control-key">Click</span>
+      <span class="control-desc">Lock Mouse / Interact</span>
+    </div>
+    <div style="margin-top:32px; text-align:center">
+      <button class="menu-btn" id="btn-close-controls" style="animation:none">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     ENDING SCREEN
+============================================================ -->
+<div id="ending-screen">
+  <div id="ending-label">Ending</div>
+  <div id="ending-title"></div>
+  <div id="ending-divider"></div>
+  <div id="ending-text"></div>
+  <div id="ending-footer">The Last Resident of Blackwood Manor — 2024</div>
+  <button class="menu-btn ending-restart" id="btn-ending-restart" style="animation:none; margin-top:24px">Play Again</button>
+</div>
+
+<!-- ============================================================
+     SCRIPTS
+============================================================ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r168/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.4/howler.min.js"></script>
+<script>
+/* ============================================================
+   THE LAST RESIDENT OF BLACKWOOD MANOR
+   A Triple-A Horror Experience
+   Built with Three.js r168 + Web Audio API + Howler.js
+   
+   Architecture:
+   - GameEngine: Core Three.js setup, render loop
+   - WorldBuilder: Procedural manor geometry
+   - AudioEngine: Howler.js + Web Audio spatial sound
+   - NarrativeSystem: Story, notes, chapters
+   - EnemySystem: Ghost AI, scripted encounters
+   - PlayerController: Movement, flashlight, sanity
+   - UIController: HUD, overlays, menus
+============================================================ */
+
+'use strict';
+
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+const GameState = {
+  phase: 'MENU',       // MENU, LOADING, PLAYING, PAUSED, NOTE, ENDING
+  chapter: 0,          // 0=prologue, 1=exploration, 2=revelation, 3=climax
+  sanity: 100,
+  battery: 100,
+  flashlightOn: true,
+  notesCollected: [],
+  inventory: [null, null, null],
+  score: 0,
+  endingType: 'bad',   // good or bad
+  playerChoice: null,  // track final choice
+  isLocked: false,
+  ghostNear: false,
+  totalNotes: 12,
+  ghostsTriggered: [],
+  doorsOpened: [],
+  startTime: 0,
+  playtime: 0,
+  fps: 60,
+  paused: false,
+  noteOpen: false,
+  jumpscareActive: false,
+  hasKey: false,
+  hasCandle: false,
+  hasMirrorShard: false,
+};
+
+// ============================================================
+// NOTES DATA (12 collectible notes)
+// ============================================================
+const NOTES = [
+  {
+    id: 0,
+    number: "Note I",
+    title: "The Welcome Letter",
+    date: "October 12th, 1977",
+    text: `Dear Mr. Blackwood,
+
+We regret to inform you that your request for additional staff has been denied. The manor's remote location makes staffing... difficult.
+
+The villagers speak of things. Things we dare not put to paper.
+
+You are alone now.
+
+You have always been alone.
+
+— The Estate Agency`
+  },
+  {
+    id: 1,
+    number: "Note II",
+    title: "Father's Journal — Page 1",
+    date: "November 3rd, 1977",
+    text: `I have not slept in four days.
+
+The sounds begin at precisely 3:17 each morning. Footsteps in the hallway above. Heavy. Deliberate. Counting.
+
+I counted the stairs once. Seventeen. The footsteps always stop at the seventeenth.
+
+There is no eighteenth stair.
+
+Tonight, there was an eighteenth step.`
+  },
+  {
+    id: 2,
+    number: "Note III",
+    title: "Torn Page — Origin Unknown",
+    date: "Undated",
+    text: `...the mirror in the east wing must never be covered. Covering it traps what is reflected.
+
+Grandfather discovered this in 1923. He covered every mirror in the house.
+
+They found seventeen mirrors, each with something pressed against the glass from the inside.
+
+They never found Grandfather.`
+  },
+  {
+    id: 3,
+    number: "Note IV",
+    title: "The Housekeeper's Final Entry",
+    date: "March 7th, 1953",
+    text: `I am leaving this house.
+
+I have served the Blackwood family for thirty years and I am leaving tonight. I will not say what I saw in the library. I will not describe the shape that formed in the fireplace smoke.
+
+I will only say this:
+
+The house is not empty.
+
+It has never been empty.
+
+God forgive whoever reads this next.
+
+— Margaret Holloway`
+  },
+  {
+    id: 4,
+    number: "Note V",
+    title: "Child's Drawing — with caption",
+    date: "Circa 1940",
+    text: `[A child's drawing. A figure with too many limbs stands in a doorway. Behind it, other figures reach through the walls.]
+
+The caption reads, in a child's handwriting:
+
+"This is the man who lives in the walls. He says he used to be like us. He says he can show me how to stay forever too.
+
+I told Mama. She said there is no man.
+
+The man heard her say that."`
+  },
+  {
+    id: 5,
+    number: "Note VI",
+    title: "Father's Journal — Page 7",
+    date: "November 28th, 1977",
+    text: `I found a room today that isn't on the plans.
+
+Small. No windows. Wallpaper of the same pattern repeated four hundred and twelve times — I counted. A chair facing the corner.
+
+The chair was warm.
+
+I have sealed the door. I have nailed it shut. I have placed the wardrobe in front of it.
+
+As I write this, I can hear, very faintly, the sound of someone sitting down.`
+  },
+  {
+    id: 6,
+    number: "Note VII",
+    title: "The Doctor's Report",
+    date: "January 15th, 1978",
+    text: `Patient: Edmund Blackwood, 43
+Condition: Acute psychotic episode, possible hereditary predisposition
+
+The patient insists his house is "alive." That the architecture shifts when unobserved. That doorways lead to different rooms on different nights.
+
+During examination, the patient became agitated and pointed to the empty corner of my office.
+
+"It followed me here," he whispered.
+
+I have scheduled a follow-up for next week.
+
+He did not appear for the appointment.
+
+He has not been seen since.`
+  },
+  {
+    id: 7,
+    number: "Note VIII",
+    title: "The Basement Record",
+    date: "September 9th, 1901",
+    text: `On this date, Lord Aldous Blackwood did conduct the following experiment in the lower chambers:
+
+The subject was willing. This is recorded for the avoidance of doubt.
+
+The ritual required darkness, silence, and a mirror placed face-down upon the earth floor.
+
+The subject asked to stop at the final moment.
+
+Lord Blackwood did not stop.
+
+What emerged from the mirror was not the subject.
+
+It wore his face. It remembered his name. It could not remember anything before the mirror.
+
+It is upstairs now.
+
+It has been upstairs for twenty-two years.`
+  },
+  {
+    id: 8,
+    number: "Note IX",
+    title: "Mother's Letter — Never Sent",
+    date: "December 1st, 1977",
+    text: `My darling,
+
+I am writing this so that if something happens, you will know the truth.
+
+Your father is not sick. I need you to understand that. What he sees is real.
+
+I have seen it too. Once. In the hallway mirror at 3 AM.
+
+My own reflection, standing still while I moved. Watching me. Its expression... patient. As though it had been waiting for me specifically.
+
+I ran. I have not looked in a mirror since.
+
+Do not come to this house.
+
+Whatever you do, do not look in the mirrors.
+
+All my love,
+Elara`
+  },
+  {
+    id: 9,
+    number: "Note X",
+    title: "Warning — Scratched into Wall",
+    date: "Unknown",
+    text: `[Text carved deeply into the plaster, as if with fingernails:]
+
+IT LEARNS FROM WATCHING
+IT COPIES FROM MIRRORS  
+IT FEEDS ON SANITY
+IT CANNOT EXIST IN LIGHT
+DO NOT GIVE IT DARKNESS
+DO NOT GIVE IT SILENCE
+DO NOT LOOK DIRECTLY AT IT
+AND GOD HELP YOU
+DO NOT LET IT LEARN YOUR NAME`
+  },
+  {
+    id: 10,
+    number: "Note XI",
+    title: "Father's Final Journal Entry",
+    date: "January 1st, 1978",
+    text: `I understand now.
+
+I have been so foolish. So afraid.
+
+The entity does not want to harm us. It wants to join us. It has been alone in the mirrors, in the walls, in the dark spaces — for so long.
+
+It showed me things last night. Beautiful things. The manor as it was when it was first built. Gardens. Laughter. Light.
+
+It remembers all of it. It is the memory of this place made manifest.
+
+I am going to the mirror room tonight. I am going to invite it through properly.
+
+I think it has been waiting for one of us to do this for a very long time.
+
+I am not afraid.
+
+— Edmund`
+  },
+  {
+    id: 11,
+    number: "Note XII — The Choice",
+    title: "A Letter Addressed to You",
+    date: "Today",
+    text: `You have come far.
+
+You know what I am now. You know what I want.
+
+I have been in this house for a hundred and twenty-three years. I have watched families come and go. I have driven them all away.
+
+But you stayed.
+
+You read my story. You heard my longing.
+
+Now you must choose.
+
+The front door is open. You can leave, and I will remain here alone, as I have always been.
+
+Or you can look into the mirror. Properly. Without fear.
+
+And we can both finally stop being alone.
+
+The choice is yours.
+
+— The Last Resident`
+  }
+];
+
+// ============================================================
+// AUDIO ENGINE
+// ============================================================
+const AudioEngine = {
+  ctx: null,
+  sounds: {},
+  ambience: null,
+  masterGain: null,
+  
+  init() {
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.masterGain = this.ctx.createGain();
+    this.masterGain.gain.value = 0.7;
+    this.masterGain.connect(this.ctx.destination);
+  },
+
+  // Generate procedural audio using Web Audio API
+  createToneBuffer(frequency, duration, type = 'sine', envelope = {a:0.01, d:0.1, s:0.5, r:0.3}) {
+    const sampleRate = this.ctx.sampleRate;
+    const length = sampleRate * duration;
+    const buffer = this.ctx.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+    
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      let amp = 0;
+      const attackEnd = envelope.a;
+      const decayEnd = attackEnd + envelope.d;
+      const releaseStart = duration - envelope.r;
+      
+      if (t < attackEnd) amp = t / envelope.a;
+      else if (t < decayEnd) amp = 1 - (1 - envelope.s) * (t - attackEnd) / envelope.d;
+      else if (t < releaseStart) amp = envelope.s;
+      else amp = envelope.s * (1 - (t - releaseStart) / envelope.r);
+      
+      let sample = 0;
+      if (type === 'sine') sample = Math.sin(2 * Math.PI * frequency * t);
+      else if (type === 'sawtooth') sample = 2 * ((frequency * t) % 1) - 1;
+      else if (type === 'square') sample = Math.sin(2 * Math.PI * frequency * t) > 0 ? 1 : -1;
+      else if (type === 'noise') sample = Math.random() * 2 - 1;
+      
+      data[i] = sample * amp * 0.3;
+    }
+    return buffer;
+  },
+
+  createNoiseBuffer(duration, filterFreq = 400) {
+    const sampleRate = this.ctx.sampleRate;
+    const length = sampleRate * duration;
+    const buffer = this.ctx.createBuffer(2, length, sampleRate);
+    
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buffer.getChannelData(ch);
+      let lastOut = 0;
+      for (let i = 0; i < length; i++) {
+        const white = Math.random() * 2 - 1;
+        // Brown noise
+        lastOut = (lastOut + 0.02 * white) / 1.02;
+        data[i] = lastOut * 3.5;
+      }
+    }
+    return buffer;
+  },
+
+  playHeartbeat(tempo = 1.0) {
+    if (!this.ctx) return;
+    const beat = () => {
+      for (let i = 0; i < 2; i++) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 60 - i * 10;
+        gain.gain.setValueAtTime(0, this.ctx.currentTime + i * 0.12);
+        gain.gain.linearRampToValueAtTime(0.4, this.ctx.currentTime + i * 0.12 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i * 0.12 + 0.3);
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(this.ctx.currentTime + i * 0.12);
+        osc.stop(this.ctx.currentTime + i * 0.12 + 0.4);
+      }
+    };
+    beat();
+    return beat;
+  },
+
+  playCreak() {
+    if (!this.ctx) return;
+    const duration = 0.8 + Math.random() * 0.4;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(80 + Math.random() * 40, this.ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(40 + Math.random() * 20, this.ctx.currentTime + duration);
+    
+    filter.type = 'bandpass';
+    filter.frequency.value = 200;
+    filter.Q.value = 2;
+    
+    gain.gain.setValueAtTime(0, this.ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.15, this.ctx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+    
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start();
+    osc.stop(this.ctx.currentTime + duration + 0.1);
+  },
+
+  playWhisper() {
+    if (!this.ctx) return;
+    const bufferSource = this.ctx.createBufferSource();
+    const buffer = this.createNoiseBuffer(1.5, 800);
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+    
+    bufferSource.buffer = buffer;
+    filter.type = 'bandpass';
+    filter.frequency.value = 1200 + Math.random() * 800;
+    filter.Q.value = 8;
+    
+    gain.gain.setValueAtTime(0, this.ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.08, this.ctx.currentTime + 0.3);
+    gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 1.5);
+    
+    bufferSource.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    bufferSource.start();
+  },
+
+  playJumpscare() {
+    if (!this.ctx) return;
+    // High frequency screech
+    const osc1 = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const dist = this.ctx.createWaveShaper();
+    
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i * 2) / 256 - 1;
+      curve[i] = (Math.PI + 400) * x / (Math.PI + 400 * Math.abs(x));
+    }
+    dist.curve = curve;
+    
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(800, this.ctx.currentTime);
+    osc1.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 1.5);
+    
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(400, this.ctx.currentTime);
+    osc2.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 1.5);
+    
+    gain.gain.setValueAtTime(0.8, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 1.5);
+    
+    osc1.connect(dist);
+    osc2.connect(dist);
+    dist.connect(gain);
+    gain.connect(this.masterGain);
+    
+    osc1.start(); osc1.stop(this.ctx.currentTime + 1.6);
+    osc2.start(); osc2.stop(this.ctx.currentTime + 1.6);
+  },
+
+  playFootstep() {
+    if (!this.ctx) return;
+    const bufSource = this.ctx.createBufferSource();
+    const buffer = this.createNoiseBuffer(0.12);
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+    
+    bufSource.buffer = buffer;
+    filter.type = 'lowpass';
+    filter.frequency.value = 300 + Math.random() * 200;
+    
+    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.12);
+    
+    bufSource.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    bufSource.start();
+  },
+
+  playAmbience() {
+    if (!this.ctx) return;
+    const playLoop = () => {
+      const bufSource = this.ctx.createBufferSource();
+      const duration = 8;
+      const sampleRate = this.ctx.sampleRate;
+      const length = sampleRate * duration;
+      const buffer = this.ctx.createBuffer(2, length, sampleRate);
+      
+      for (let ch = 0; ch < 2; ch++) {
+        const data = buffer.getChannelData(ch);
+        let last = 0;
+        for (let i = 0; i < length; i++) {
+          const t = i / sampleRate;
+          const white = Math.random() * 2 - 1;
+          last = (last + 0.005 * white) / 1.005;
+          // Wind-like LFO
+          const wind = Math.sin(t * 0.3 + ch) * Math.sin(t * 0.7);
+          data[i] = (last * 2 + wind * 0.02) * 0.15;
+        }
+      }
+      
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 600;
+      
+      const gain = this.ctx.createGain();
+      gain.gain.value = 0.4;
+      
+      bufSource.buffer = buffer;
+      bufSource.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+      bufSource.start();
+      bufSource.onended = playLoop;
+    };
+    playLoop();
+  },
+
+  playDoor() {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+    
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(60, this.ctx.currentTime + 0.6);
+    
+    filter.type = 'lowpass';
+    filter.frequency.value = 400;
+    
+    gain.gain.setValueAtTime(0, this.ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.25, this.ctx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.6);
+    
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.65);
+  },
+
+  playPickup() {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(880, this.ctx.currentTime + 0.2);
+    
+    gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
+    
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.35);
+  },
+
+  playHeartbeatContinuous(rate = 0.8) {
+    if (!this.ctx || this._heartInterval) return;
+    this._heartInterval = setInterval(() => {
+      this.playHeartbeat();
+    }, rate * 1000);
+  },
+
+  stopHeartbeat() {
+    if (this._heartInterval) {
+      clearInterval(this._heartInterval);
+      this._heartInterval = null;
+    }
+  }
+};
+
+// ============================================================
+// NARRATIVE SYSTEM
+// ============================================================
+const NarrativeSystem = {
+  queue: [],
+  showing: false,
+  currentChapter: -1,
+
+  chapters: [
+    {
+      roman: 'Prologue',
+      name: 'The Arrival',
+      tagline: '"You should not have come here."',
+      duration: 5000
+    },
+    {
+      roman: 'Chapter I',
+      name: 'Exploration',
+      tagline: '"Every room hides something. Every shadow breathes."',
+      duration: 5000
+    },
+    {
+      roman: 'Chapter II',
+      name: 'Revelation',
+      tagline: '"Now you understand what lives here."',
+      duration: 5000
+    },
+    {
+      roman: 'Chapter III',
+      name: 'The Climax',
+      tagline: '"There is no escape. Only a choice."',
+      duration: 5000
+    }
+  ],
+
+  showChapter(idx) {
+    if (this.currentChapter === idx) return;
+    this.currentChapter = idx;
+    GameState.chapter = idx;
+    
+    const ch = this.chapters[idx];
+    const screen = document.getElementById('chapter-title-screen');
+    document.getElementById('chapter-roman').textContent = ch.roman;
+    document.getElementById('chapter-name').textContent = ch.name;
+    document.getElementById('chapter-tagline').textContent = ch.tagline;
+    
+    screen.classList.add('visible');
+    setTimeout(() => {
+      screen.classList.remove('visible');
+    }, ch.duration);
+
+    // Update chapter HUD
+    const disp = document.getElementById('chapter-display');
+    disp.textContent = `${ch.roman} — ${ch.name}`;
+    disp.classList.add('visible');
+    setTimeout(() => disp.classList.remove('visible'), 6000);
+  },
+
+  showNarrative(text, duration = 4000) {
+    const el = document.getElementById('narrative-text');
+    el.textContent = text;
+    el.classList.add('visible');
+    clearTimeout(this._narTimer);
+    this._narTimer = setTimeout(() => {
+      el.classList.remove('visible');
+    }, duration);
+  },
+
+  openNote(noteId) {
+    const note = NOTES[noteId];
+    if (!note) return;
+    
+    document.getElementById('note-number').textContent = note.number;
+    document.getElementById('note-title').textContent = note.title;
+    document.getElementById('note-text').textContent = note.text;
+    document.getElementById('note-date').textContent = note.date;
+    
+    const overlay = document.getElementById('note-overlay');
+    overlay.classList.add('visible');
+    GameState.phase = 'NOTE';
+    GameState.noteOpen = true;
+    
+    if (!GameState.notesCollected.includes(noteId)) {
+      GameState.notesCollected.push(noteId);
+    }
+    
+    AudioEngine.playPickup();
+  },
+
+  closeNote() {
+    document.getElementById('note-overlay').classList.remove('visible');
+    GameState.phase = 'PLAYING';
+    GameState.noteOpen = false;
+  }
+};
+
+// ============================================================
+// THREE.JS GAME ENGINE
+// ============================================================
+const GameEngine = {
+  renderer: null,
+  scene: null,
+  camera: null,
+  clock: null,
+  
+  // Post-processing (manual implementation)
+  composer: null,
+  
+  // Lighting
+  ambientLight: null,
+  flashlight: null,
+  pointLights: [],
+  
+  // Objects
+  interactables: [],
+  doors: [],
+  ghosts: [],
+  collidables: [],
+  
+  // Player
+  velocity: new THREE.Vector3(),
+  moveDir: { forward: false, backward: false, left: false, right: false },
+  yaw: 0,
+  pitch: 0,
+  playerHeight: 1.7,
+  
+  // Camera bob
+  bobTime: 0,
+  
+  // Entity
+  ghostEntities: [],
+  
+  init() {
+    const canvas = document.getElementById('game-canvas');
+    
+    this.renderer = new THREE.WebGLRenderer({
+      canvas: canvas,
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance'
+    });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 0.6;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x000005);
+    this.scene.fog = new THREE.FogExp2(0x000008, 0.08);
+    
+    this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+    this.camera.position.set(0, this.playerHeight, 5);
+    
+    this.clock = new THREE.Clock();
+    
+    this.setupLighting();
+    WorldBuilder.build(this.scene, this.interactables, this.collidables, this.doors);
+    EnemySystem.init(this.scene);
+    
+    window.addEventListener('resize', () => this.onResize());
+  },
+
+  setupLighting() {
+    // Very dim ambient
+    this.ambientLight = new THREE.AmbientLight(0x080818, 0.15);
+    this.scene.add(this.ambientLight);
+    
+    // Flashlight (SpotLight attached to camera)
+    this.flashlight = new THREE.SpotLight(0xffeedd, 8, 20, Math.PI / 8, 0.4, 2);
+    this.flashlight.castShadow = true;
+    this.flashlight.shadow.mapSize.width = 1024;
+    this.flashlight.shadow.mapSize.height = 1024;
+    this.flashlight.shadow.camera.near = 0.1;
+    this.flashlight.shadow.camera.far = 20;
+    this.scene.add(this.flashlight);
+    
+    const flashTarget = new THREE.Object3D();
+    this.scene.add(flashTarget);
+    this.flashlight.target = flashTarget;
+    this._flashTarget = flashTarget;
+    
+    // Candle lights (warm, flickering)
+    const candlePositions = [
+      { pos: [2, 0.8, -8], color: 0xff6622, intensity: 1.5 },
+      { pos: [-3, 0.8, -15], color: 0xff5511, intensity: 1.2 },
+      { pos: [5, 0.8, -25], color: 0xff6633, intensity: 1.0 },
+      { pos: [-4, 0.8, -35], color: 0xff4400, intensity: 1.3 },
+      { pos: [0, 0.8, -45], color: 0xff5522, intensity: 1.1 },
+    ];
+    
+    candlePositions.forEach(c => {
+      const light = new THREE.PointLight(c.color, c.intensity, 6, 2);
+      light.position.set(...c.pos);
+      light.castShadow = false;
+      light._baseIntensity = c.intensity;
+      this.pointLights.push(light);
+      this.scene.add(light);
+    });
+  },
+
+  updateFlashlight() {
+    const camPos = this.camera.position.clone();
+    this.flashlight.position.copy(camPos);
+    
+    // Project forward direction
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyEuler(this.camera.rotation);
+    const target = camPos.clone().add(forward.multiplyScalar(10));
+    this._flashTarget.position.copy(target);
+    
+    // Battery drain
+    if (GameState.flashlightOn && GameState.battery > 0) {
+      GameState.battery -= 0.005;
+      if (GameState.battery <= 0) {
+        GameState.battery = 0;
+        GameState.flashlightOn = false;
+      }
+    }
+    
+    // Flashlight flicker when low
+    const batPct = GameState.battery / 100;
+    if (GameState.flashlightOn) {
+      let flickerMult = 1;
+      if (batPct < 0.2) {
+        flickerMult = 0.5 + Math.random() * 0.7;
+      }
+      this.flashlight.intensity = 8 * flickerMult * (0.6 + batPct * 0.4);
+    } else {
+      this.flashlight.intensity = 0;
+    }
+    
+    // Update HUD
+    const bar = document.getElementById('battery-bar');
+    bar.style.width = GameState.battery + '%';
+    bar.classList.toggle('low', GameState.battery < 20);
+  },
+
+  updateCandleFlicker(dt) {
+    this.pointLights.forEach((light, i) => {
+      const flicker = 0.8 + Math.sin(Date.now() * 0.003 + i * 7.3) * 0.1 +
+                      Math.sin(Date.now() * 0.011 + i * 2.1) * 0.08 +
+                      (Math.random() * 0.04);
+      light.intensity = light._baseIntensity * flicker;
+    });
+  },
+
+  updatePlayer(dt) {
+    if (GameState.paused || GameState.noteOpen) return;
+    
+    const speed = 3.5;
+    const friction = 8;
+    
+    const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    
+    const accel = new THREE.Vector3();
+    if (this.moveDir.forward)  accel.add(forward);
+    if (this.moveDir.backward) accel.sub(forward);
+    if (this.moveDir.left)     accel.sub(right);
+    if (this.moveDir.right)    accel.add(right);
+    
+    if (accel.length() > 0) accel.normalize();
+    
+    this.velocity.x += accel.x * speed * dt;
+    this.velocity.z += accel.z * speed * dt;
+    this.velocity.x -= this.velocity.x * friction * dt;
+    this.velocity.z -= this.velocity.z * friction * dt;
+    
+    // Moving => footstep sounds
+    const moving = this.moveDir.forward || this.moveDir.backward || this.moveDir.left || this.moveDir.right;
+    if (moving) {
+      this._footTimer = (this._footTimer || 0) + dt;
+      if (this._footTimer > 0.45) {
+        this._footTimer = 0;
+        AudioEngine.playFootstep();
+      }
+      // Camera bob
+      this.bobTime += dt * 6;
+    }
+    
+    // Collision detection (simple AABB)
+    const nextPos = this.camera.position.clone().add(this.velocity.clone().multiplyScalar(dt));
+    
+    let collideX = false, collideZ = false;
+    const radius = 0.4;
+    
+    this.collidables.forEach(obj => {
+      if (!obj.geometry) return;
+      obj.updateMatrixWorld();
+      const box = new THREE.Box3().setFromObject(obj);
+      
+      const testX = new THREE.Vector3(nextPos.x, this.camera.position.y, this.camera.position.z);
+      const testZ = new THREE.Vector3(this.camera.position.x, this.camera.position.y, nextPos.z);
+      
+      const pBox = new THREE.Box3(
+        new THREE.Vector3(-radius, -0.1, -radius),
+        new THREE.Vector3(radius, 0.1, radius)
+      );
+      
+      if (box.intersectsBox(new THREE.Box3(testX.clone().add(pBox.min), testX.clone().add(pBox.max)))) collideX = true;
+      if (box.intersectsBox(new THREE.Box3(testZ.clone().add(pBox.min), testZ.clone().add(pBox.max)))) collideZ = true;
+    });
+    
+    if (!collideX) this.camera.position.x += this.velocity.x * dt;
+    else this.velocity.x = 0;
+    if (!collideZ) this.camera.position.z += this.velocity.z * dt;
+    else this.velocity.z = 0;
+    
+    // Camera bob
+    const bobY = moving ? Math.sin(this.bobTime) * 0.04 : 0;
+    const bobX = moving ? Math.sin(this.bobTime * 0.5) * 0.02 : 0;
+    this.camera.position.y = this.playerHeight + bobY;
+    
+    // Apply rotation
+    this.camera.rotation.order = 'YXZ';
+    this.camera.rotation.y = this.yaw;
+    this.camera.rotation.x = this.pitch;
+    this.camera.rotation.z = bobX;
+  },
+
+  updateInteractables() {
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+    
+    const objects = this.interactables.map(i => i.mesh).filter(Boolean);
+    const hits = raycaster.intersectObjects(objects, true);
+    
+    const prompt = document.getElementById('interact-prompt');
+    const crosshair = document.getElementById('crosshair');
+    
+    this._nearInteractable = null;
+    
+    if (hits.length > 0 && hits[0].distance < 3) {
+      const hit = hits[0];
+      let obj = hit.object;
+      // Find parent interactable
+      while (obj.parent && !obj._interactData) {
+        if (obj._interactData) break;
+        obj = obj.parent;
+      }
+      
+      const interactData = this.interactables.find(i => {
+        if (!i.mesh) return false;
+        return i.mesh === hit.object || i.mesh.getObjectById(hit.object.id);
+      });
+      
+      if (interactData && !interactData.used) {
+        prompt.textContent = interactData.prompt || '[E] Interact';
+        prompt.classList.add('visible');
+        crosshair.classList.add('interact-hint');
+        this._nearInteractable = interactData;
+      } else {
+        prompt.classList.remove('visible');
+        crosshair.classList.remove('interact-hint');
+      }
+    } else {
+      prompt.classList.remove('visible');
+      crosshair.classList.remove('interact-hint');
+    }
+  },
+
+  interact() {
+    if (!this._nearInteractable) return;
+    const item = this._nearInteractable;
+    
+    if (item.type === 'note') {
+      NarrativeSystem.openNote(item.noteId);
+    } else if (item.type === 'door') {
+      this.openDoor(item);
+    } else if (item.type === 'item') {
+      this.pickupItem(item);
+    } else if (item.type === 'mirror_choice') {
+      this.triggerEnding('good');
+    } else if (item.type === 'door_exit') {
+      this.triggerEnding('bad');
+    }
+  },
+
+  openDoor(item) {
+    if (GameState.doorsOpened.includes(item.id)) return;
+    if (item.requiresKey && !GameState.hasKey) {
+      NarrativeSystem.showNarrative("The door is locked. I need to find a key.", 3000);
+      return;
+    }
+    GameState.doorsOpened.push(item.id);
+    AudioEngine.playDoor();
+    
+    // Animate door opening
+    if (item.mesh) {
+      const targetRot = item.mesh.rotation.y + Math.PI / 2;
+      const anim = () => {
+        if (Math.abs(item.mesh.rotation.y - targetRot) > 0.05) {
+          item.mesh.rotation.y += (targetRot - item.mesh.rotation.y) * 0.1;
+          requestAnimationFrame(anim);
+        } else {
+          item.mesh.rotation.y = targetRot;
+        }
+      };
+      anim();
+    }
+    
+    item.used = true;
+    if (item.onOpen) item.onOpen();
+  },
+
+  pickupItem(item) {
+    const emptySlot = GameState.inventory.findIndex(s => s === null);
+    if (emptySlot === -1) {
+      NarrativeSystem.showNarrative("My pockets are full.", 2000);
+      return;
+    }
+    
+    GameState.inventory[emptySlot] = item.itemType;
+    item.used = true;
+    item.mesh.visible = false;
+    
+    if (item.itemType === 'key') GameState.hasKey = true;
+    if (item.itemType === 'candle') GameState.hasCandle = true;
+    if (item.itemType === 'shard') GameState.hasMirrorShard = true;
+    
+    AudioEngine.playPickup();
+    NarrativeSystem.showNarrative(item.pickupText || "Item collected.", 2500);
+    
+    // Update inventory UI
+    const icons = ['🗝️', '🕯️', '💎'];
+    const iconMap = { key: '🗝️', candle: '🕯️', shard: '💎' };
+    document.getElementById(`slot-${emptySlot}-icon`).textContent = iconMap[item.itemType] || '?';
+  },
+
+  updateSanity(dt) {
+    const sanityBar = document.getElementById('sanity-bar');
+    const sanityOverlay = document.getElementById('sanity-overlay');
+    
+    // Lose sanity when ghost is near or in darkness
+    let sanityLoss = 0;
+    if (GameState.ghostNear) sanityLoss += 3;
+    if (!GameState.flashlightOn) sanityLoss += 0.5;
+    if (GameState.chapter >= 2) sanityLoss += 0.2;
+    
+    // Regain slowly in light
+    let sanityGain = 0;
+    if (GameState.flashlightOn && GameState.battery > 10) sanityGain += 0.3;
+    
+    GameState.sanity = Math.max(0, Math.min(100, GameState.sanity - sanityLoss * dt + sanityGain * dt));
+    
+    const pct = GameState.sanity / 100;
+    sanityBar.style.width = (pct * 100) + '%';
+    sanityBar.classList.toggle('low', pct < 0.3);
+    
+    // Visual distortions based on sanity
+    const grain = document.getElementById('grain');
+    grain.style.opacity = 0.035 + (1 - pct) * 0.06;
+    
+    // Chromatic aberration
+    const chroma = document.getElementById('chroma');
+    if (pct < 0.5) {
+      chroma.style.opacity = (0.5 - pct) * 0.15;
+    }
+    
+    // Canvas tilt effect for low sanity
+    if (pct < 0.3) {
+      const tilt = Math.sin(Date.now() * 0.002) * (1 - pct) * 3;
+      this.camera.rotation.z += Math.sin(Date.now() * 0.004) * (0.3 - pct) * 0.002;
+    }
+    
+    // Sanity overlay
+    sanityOverlay.style.opacity = Math.max(0, (1 - pct) * 0.6 - 0.1);
+    
+    // Heartbeat when low sanity
+    if (pct < 0.3 && !AudioEngine._heartInterval) {
+      AudioEngine.playHeartbeatContinuous(60 / (60 + (0.3 - pct) * 200));
+    } else if (pct >= 0.3 && AudioEngine._heartInterval) {
+      AudioEngine.stopHeartbeat();
+    }
+    
+    // Random whispers at low sanity
+    if (pct < 0.4 && Math.random() < dt * 0.3) {
+      AudioEngine.playWhisper();
+    }
+    
+    // Random creaks
+    if (Math.random() < dt * 0.15) {
+      AudioEngine.playCreak();
+    }
+  },
+
+  triggerJumpscare(type = 'ghost') {
+    if (GameState.jumpscareActive) return;
+    GameState.jumpscareActive = true;
+    
+    AudioEngine.playJumpscare();
+    
+    const overlay = document.getElementById('jumpscare-overlay');
+    const img = document.getElementById('jumpscare-image');
+    const flash = document.getElementById('jumpscare-flash-white');
+    
+    const jumpscareChars = ['👁️', '💀', '👻', '🕷️', '☠️'];
+    img.textContent = jumpscareChars[Math.floor(Math.random() * jumpscareChars.length)];
+    
+    overlay.style.animation = 'none';
+    overlay.style.opacity = '0';
+    flash.style.animation = 'none';
+    
+    requestAnimationFrame(() => {
+      overlay.style.animation = 'jumpscare-flash 1.5s ease-out forwards';
+      flash.style.animation = 'white-flash 0.3s ease-out forwards';
+    });
+    
+    // Sanity hit
+    GameState.sanity = Math.max(0, GameState.sanity - 25);
+    
+    setTimeout(() => {
+      overlay.style.animation = 'none';
+      overlay.style.opacity = '0';
+      flash.style.animation = 'none';
+      GameState.jumpscareActive = false;
+    }, 1800);
+  },
+
+  triggerEnding(type) {
+    GameState.endingType = type;
+    GameState.phase = 'ENDING';
+    
+    UIController.fadeToBlack(() => {
+      UIController.showEnding(type);
+    });
+  },
+
+  onResize() {
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+  },
+
+  // Main render loop
+  _lastFpsUpdate: 0,
+  _frameCount: 0,
+  
+  update() {
+    if (GameState.phase !== 'PLAYING' && GameState.phase !== 'NOTE') return;
+    
+    const dt = Math.min(this.clock.getDelta(), 0.05);
+    const elapsed = this.clock.getElapsedTime();
+    
+    // FPS counter
+    this._frameCount++;
+    if (Date.now() - this._lastFpsUpdate > 500) {
+      GameState.fps = Math.round(this._frameCount * 2);
+      this._frameCount = 0;
+      this._lastFpsUpdate = Date.now();
+      document.getElementById('fps-counter').textContent = GameState.fps + ' FPS';
+    }
+    
+    if (!GameState.paused && !GameState.noteOpen) {
+      this.updatePlayer(dt);
+      this.updateFlashlight();
+      this.updateCandleFlicker(dt);
+      this.updateSanity(dt);
+      this.updateInteractables();
+      EnemySystem.update(dt, this.camera.position);
+      StoryTriggers.update(this.camera.position);
+    }
+    
+    this.renderer.render(this.scene, this.camera);
+  }
+};
+
+// ============================================================
+// WORLD BUILDER — Procedural Manor Geometry
+// ============================================================
+const WorldBuilder = {
+  // Materials
+  mats: {},
+
+  createMaterials() {
+    // Floor
+    this.mats.floor = new THREE.MeshStandardMaterial({
+      color: 0x1a1208,
+      roughness: 0.9,
+      metalness: 0.0,
+    });
+    // Wall
+    this.mats.wall = new THREE.MeshStandardMaterial({
+      color: 0x151015,
+      roughness: 0.95,
+      metalness: 0.0,
+    });
+    // Ceiling
+    this.mats.ceiling = new THREE.MeshStandardMaterial({
+      color: 0x0a080e,
+      roughness: 1.0,
+    });
+    // Wood
+    this.mats.wood = new THREE.MeshStandardMaterial({
+      color: 0x2a1a0a,
+      roughness: 0.85,
+      metalness: 0.05,
+    });
+    // Stone
+    this.mats.stone = new THREE.MeshStandardMaterial({
+      color: 0x1c1c1c,
+      roughness: 1.0,
+    });
+    // Mirror
+    this.mats.mirror = new THREE.MeshStandardMaterial({
+      color: 0x334455,
+      roughness: 0.05,
+      metalness: 0.9,
+      envMapIntensity: 1.0,
+    });
+    // Cloth/curtain
+    this.mats.cloth = new THREE.MeshStandardMaterial({
+      color: 0x1a0808,
+      roughness: 1.0,
+      side: THREE.DoubleSide,
+    });
+    // Metal
+    this.mats.metal = new THREE.MeshStandardMaterial({
+      color: 0x2a2a2a,
+      roughness: 0.3,
+      metalness: 0.8,
+    });
+    // Candle
+    this.mats.candle = new THREE.MeshStandardMaterial({
+      color: 0xf0e0b0,
+      roughness: 0.7,
+    });
+    // Book
+    this.mats.book = new THREE.MeshStandardMaterial({
+      color: 0x3a1a0a,
+      roughness: 0.9,
+    });
+    // Note paper
+    this.mats.paper = new THREE.MeshStandardMaterial({
+      color: 0xc8b89a,
+      roughness: 0.8,
+    });
+    // Rug
+    this.mats.rug = new THREE.MeshStandardMaterial({
+      color: 0x3a0808,
+      roughness: 1.0,
+    });
+    // Glass
+    this.mats.glass = new THREE.MeshStandardMaterial({
+      color: 0x334455,
+      transparent: true,
+      opacity: 0.3,
+      roughness: 0.1,
+      metalness: 0.1,
+    });
+    // Emissive candle flame
+    this.mats.flame = new THREE.MeshStandardMaterial({
+      color: 0xff6622,
+      emissive: 0xff3300,
+      emissiveIntensity: 3.0,
+      transparent: true,
+      opacity: 0.85,
+    });
+    // Ghost material
+    this.mats.ghost = new THREE.MeshStandardMaterial({
+      color: 0x8899cc,
+      transparent: true,
+      opacity: 0.0,
+      emissive: 0x4455aa,
+      emissiveIntensity: 1.5,
+      roughness: 0.5,
+    });
+  },
+
+  addRoom(scene, collidables, x, y, z, w, h, d) {
+    const halfW = w / 2, halfD = d / 2;
+    const wallThick = 0.3;
+    
+    // Floor
+    const floor = new THREE.Mesh(
+      new THREE.BoxGeometry(w, wallThick, d),
+      this.mats.floor
+    );
+    floor.position.set(x, y, z);
+    floor.receiveShadow = true;
+    scene.add(floor);
+    
+    // Ceiling
+    const ceiling = new THREE.Mesh(
+      new THREE.BoxGeometry(w, wallThick, d),
+      this.mats.ceiling
+    );
+    ceiling.position.set(x, y + h, z);
+    scene.add(ceiling);
+    
+    // Back wall
+    const backWall = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, wallThick),
+      this.mats.wall
+    );
+    backWall.position.set(x, y + h / 2, z - halfD);
+    backWall.receiveShadow = true; backWall.castShadow = true;
+    scene.add(backWall);
+    collidables.push(backWall);
+    
+    // Front wall
+    const frontWall = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, wallThick),
+      this.mats.wall
+    );
+    frontWall.position.set(x, y + h / 2, z + halfD);
+    frontWall.receiveShadow = true; frontWall.castShadow = true;
+    scene.add(frontWall);
+    collidables.push(frontWall);
+    
+    // Left wall
+    const leftWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThick, h, d),
+      this.mats.wall
+    );
+    leftWall.position.set(x - halfW, y + h / 2, z);
+    leftWall.receiveShadow = true; leftWall.castShadow = true;
+    scene.add(leftWall);
+    collidables.push(leftWall);
+    
+    // Right wall
+    const rightWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThick, h, d),
+      this.mats.wall
+    );
+    rightWall.position.set(x + halfW, y + h / 2, z);
+    rightWall.receiveShadow = true; rightWall.castShadow = true;
+    scene.add(rightWall);
+    collidables.push(rightWall);
+    
+    return { floor, ceiling, backWall, frontWall, leftWall, rightWall };
+  },
+
+  addCandle(scene, x, y, z) {
+    const group = new THREE.Group();
+    
+    // Candle stick
+    const stick = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.07, 0.35, 8),
+      this.mats.candle
+    );
+    stick.castShadow = true;
+    group.add(stick);
+    
+    // Flame (slightly animated via emissive)
+    const flame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.04, 0.12, 6),
+      this.mats.flame.clone()
+    );
+    flame.position.y = 0.25;
+    group.add(flame);
+    flame._isFlame = true;
+    
+    group.position.set(x, y, z);
+    scene.add(group);
+    return group;
+  },
+
+  addChair(scene, x, y, z, rotY = 0) {
+    const group = new THREE.Group();
+    
+    // Seat
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.5), this.mats.wood);
+    seat.position.y = 0.45;
+    group.add(seat);
+    
+    // Back
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.05), this.mats.wood);
+    back.position.set(0, 0.75, -0.23);
+    group.add(back);
+    
+    // Legs
+    [[0.2, 0, 0.2], [-0.2, 0, 0.2], [0.2, 0, -0.2], [-0.2, 0, -0.2]].forEach(([lx, ly, lz]) => {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.45, 0.05), this.mats.wood);
+      leg.position.set(lx, 0.22, lz);
+      group.add(leg);
+    });
+    
+    group.position.set(x, y, z);
+    group.rotation.y = rotY;
+    group.castShadow = true;
+    scene.add(group);
+    return group;
+  },
+
+  addTable(scene, x, y, z, w = 1.2, d = 0.7) {
+    const group = new THREE.Group();
+    const top = new THREE.Mesh(new THREE.BoxGeometry(w, 0.06, d), this.mats.wood);
+    top.position.y = 0.7;
+    group.add(top);
+    
+    [[w/2-0.08, 0, d/2-0.08], [-w/2+0.08, 0, d/2-0.08],
+     [w/2-0.08, 0, -d/2+0.08], [-w/2+0.08, 0, -d/2+0.08]].forEach(([lx,,lz]) => {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.7, 0.07), this.mats.wood);
+      leg.position.set(lx, 0.35, lz);
+      group.add(leg);
+    });
+    
+    group.position.set(x, y, z);
+    group.castShadow = true;
+    scene.add(group);
+    return group;
+  },
+
+  addBookshelf(scene, collidables, x, y, z, rotY = 0) {
+    const group = new THREE.Group();
+    
+    // Frame
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.4, 0.3), this.mats.wood);
+    group.add(frame);
+    
+    // Books (random colors)
+    const bookColors = [0x3a0808, 0x082a08, 0x08083a, 0x3a2808, 0x1a0a0a];
+    for (let row = 0; row < 4; row++) {
+      let xOff = -0.5;
+      while (xOff < 0.5) {
+        const w = 0.05 + Math.random() * 0.1;
+        const book = new THREE.Mesh(
+          new THREE.BoxGeometry(w, 0.3 + Math.random() * 0.2, 0.22),
+          new THREE.MeshStandardMaterial({ color: bookColors[Math.floor(Math.random() * bookColors.length)], roughness: 0.9 })
+        );
+        book.position.set(xOff + w / 2, -0.9 + row * 0.55, 0.02);
+        group.add(book);
+        xOff += w + 0.01;
+      }
+    }
+    
+    group.position.set(x, y + 1.2, z);
+    group.rotation.y = rotY;
+    group.castShadow = true;
+    scene.add(group);
+    
+    // Collision proxy
+    const proxy = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.4, 0.3));
+    proxy.position.set(x, y + 1.2, z);
+    proxy.rotation.y = rotY;
+    proxy.visible = false;
+    scene.add(proxy);
+    collidables.push(proxy);
+    
+    return group;
+  },
+
+  addMirror(scene, interactables, x, y, z, w, h, rotY, type = 'decor') {
+    const group = new THREE.Group();
+    
+    // Frame
+    const frameThick = 0.08;
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x1a0f05, roughness: 0.5, metalness: 0.3 });
+    
+    // Top/bottom
+    const frameTop = new THREE.Mesh(new THREE.BoxGeometry(w + frameThick * 2, frameThick, 0.1), frameMat);
+    frameTop.position.y = h / 2 + frameThick / 2;
+    group.add(frameTop);
+    
+    const frameBot = new THREE.Mesh(new THREE.BoxGeometry(w + frameThick * 2, frameThick, 0.1), frameMat);
+    frameBot.position.y = -h / 2 - frameThick / 2;
+    group.add(frameBot);
+    
+    // Left/right
+    const frameL = new THREE.Mesh(new THREE.BoxGeometry(frameThick, h, 0.1), frameMat);
+    frameL.position.x = -w / 2 - frameThick / 2;
+    group.add(frameL);
+    
+    const frameR = new THREE.Mesh(new THREE.BoxGeometry(frameThick, h, 0.1), frameMat);
+    frameR.position.x = w / 2 + frameThick / 2;
+    group.add(frameR);
+    
+    // Glass
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.04), this.mats.mirror.clone());
+    group.add(glass);
+    
+    group.position.set(x, y, z);
+    group.rotation.y = rotY;
+    scene.add(group);
+    
+    if (type === 'final') {
+      interactables.push({
+        mesh: glass,
+        type: 'mirror_choice',
+        prompt: '[E] Look into the mirror',
+        id: 'final_mirror'
+      });
+    }
+    
+    return group;
+  },
+
+  addNote(scene, interactables, x, y, z, noteId) {
+    const paper = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.2, 0.28),
+      this.mats.paper.clone()
+    );
+    paper.position.set(x, y, z);
+    paper.rotation.x = -Math.PI / 2 + (Math.random() * 0.3 - 0.15);
+    paper.rotation.z = Math.random() * 0.4 - 0.2;
+    paper.castShadow = true;
+    scene.add(paper);
+    
+    interactables.push({
+      mesh: paper,
+      type: 'note',
+      noteId: noteId,
+      prompt: `[E] Read note`
+    });
+    
+    return paper;
+  },
+
+  addPickupItem(scene, interactables, x, y, z, itemType, prompt, pickupText) {
+    const geoms = {
+      key: new THREE.TorusGeometry(0.06, 0.02, 8, 16),
+      candle: new THREE.CylinderGeometry(0.04, 0.05, 0.2, 8),
+      shard: new THREE.OctahedronGeometry(0.08)
+    };
+    const colors = { key: 0x8a7a30, candle: 0xf0e0b0, shard: 0x667799 };
+    
+    const mesh = new THREE.Mesh(
+      geoms[itemType] || new THREE.SphereGeometry(0.08),
+      new THREE.MeshStandardMaterial({
+        color: colors[itemType] || 0xaaaaaa,
+        roughness: 0.4,
+        metalness: itemType === 'key' ? 0.8 : 0.1,
+        emissive: colors[itemType] || 0xaaaaaa,
+        emissiveIntensity: 0.3
+      })
+    );
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    scene.add(mesh);
+    
+    // Gentle float animation
+    mesh._floatBase = y;
+    mesh._floatPhase = Math.random() * Math.PI * 2;
+    
+    interactables.push({
+      mesh,
+      type: 'item',
+      itemType,
+      prompt: prompt || `[E] Pick up`,
+      pickupText: pickupText || 'Item collected.'
+    });
+    
+    return mesh;
+  },
+
+  addBed(scene, x, y, z) {
+    const group = new THREE.Group();
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 2.0), this.mats.wood);
+    frame.position.y = 0.2;
+    group.add(frame);
+    const mattress = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.25, 1.9), 
+      new THREE.MeshStandardMaterial({ color: 0x2a1515, roughness: 1.0 }));
+    mattress.position.y = 0.52;
+    group.add(mattress);
+    const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.1, 0.35),
+      new THREE.MeshStandardMaterial({ color: 0x1a1010, roughness: 1.0 }));
+    pillow.position.set(0, 0.68, -0.75);
+    group.add(pillow);
+    group.position.set(x, y, z);
+    group.castShadow = true;
+    scene.add(group);
+    return group;
+  },
+
+  addChandelier(scene, x, y, z) {
+    const group = new THREE.Group();
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.6, 8), this.mats.metal);
+    rod.position.y = 0.3;
+    group.add(rod);
+    
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.02, 8, 24), this.mats.metal);
+    ring.rotation.x = Math.PI / 2;
+    group.add(ring);
+    
+    // Candles on ring
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2;
+      const cx = Math.cos(angle) * 0.3;
+      const cz = Math.sin(angle) * 0.3;
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.12, 6), this.mats.candle);
+      c.position.set(cx, 0.06, cz);
+      group.add(c);
+      
+      const f = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.06, 5), this.mats.flame.clone());
+      f._isFlame = true;
+      f.position.set(cx, 0.15, cz);
+      group.add(f);
+    }
+    
+    group.position.set(x, y, z);
+    scene.add(group);
+    return group;
+  },
+
+  addDoor(scene, interactables, collidables, x, y, z, rotY, id, requiresKey = false, onOpen = null) {
+    const doorGroup = new THREE.Group();
+    doorGroup.position.set(x, y, z);
+    doorGroup.rotation.y = rotY;
+    
+    const door = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 2.1, 0.08),
+      new THREE.MeshStandardMaterial({ color: 0x1e1008, roughness: 0.85 })
+    );
+    door.position.set(0.45, 1.05, 0);
+    door.castShadow = true;
+    doorGroup.add(door);
+    
+    // Doorknob
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.05), this.mats.metal);
+    knob.position.set(0.85, 1.0, 0.05);
+    doorGroup.add(knob);
+    
+    scene.add(doorGroup);
+    
+    // Door frame
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x1a0e06, roughness: 0.9 });
+    const frameLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.2, 0.15), frameMat);
+    frameLeft.position.set(x - 0.05, y + 1.1, z);
+    frameLeft.rotation.y = rotY;
+    scene.add(frameLeft);
+    
+    const frameRight = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.2, 0.15), frameMat);
+    frameRight.position.set(x + 1.0, y + 1.1, z);
+    frameRight.rotation.y = rotY;
+    scene.add(frameRight);
+    
+    const frameTop = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.1, 0.15), frameMat);
+    frameTop.position.set(x + 0.45, y + 2.2, z);
+    frameTop.rotation.y = rotY;
+    scene.add(frameTop);
+    
+    interactables.push({
+      mesh: door,
+      type: 'door',
+      id: id,
+      requiresKey,
+      mesh: doorGroup,
+      prompt: requiresKey ? '[E] Open door (locked)' : '[E] Open door',
+      onOpen
+    });
+    
+    return doorGroup;
+  },
+
+  addFireplace(scene, x, y, z) {
+    const group = new THREE.Group();
+    
+    // Stone surround
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x1e1e1e, roughness: 1.0 });
+    const outer = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.6, 0.4), stoneMat);
+    group.add(outer);
+    
+    // Opening
+    const inner = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.0, 0.45),
+      new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 1.0 }));
+    inner.position.y = -0.2;
+    group.add(inner);
+    
+    // Fire glow (emissive)
+    const fire = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.7, 0.6),
+      new THREE.MeshStandardMaterial({
+        color: 0xff4400,
+        emissive: 0xff2200,
+        emissiveIntensity: 4.0,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide
+      })
+    );
+    fire.position.set(0, -0.2, -0.05);
+    fire._isFlame = true;
+    group.add(fire);
+    
+    group.position.set(x, y + 0.8, z);
+    group.castShadow = true;
+    scene.add(group);
+    
+    // Fireplace light
+    const fireLight = new THREE.PointLight(0xff4400, 3, 8, 2);
+    fireLight.position.set(x, y + 0.6, z + 0.3);
+    fireLight._baseIntensity = 3;
+    scene.add(fireLight);
+    GameEngine.pointLights.push(fireLight);
+    
+    return group;
+  },
+
+  build(scene, interactables, collidables, doors) {
+    this.createMaterials();
+    
+    // ============================================================
+    // FOYER (Room 1) — Entry hall
+    // ============================================================
+    this.addRoom(scene, collidables, 0, 0, 0, 12, 3.5, 10);
+    this.addChandelier(scene, 0, 3.3, 0);
+    
+    // Grand staircase hint
+    const stairMat = new THREE.MeshStandardMaterial({ color: 0x1a1008, roughness: 0.9 });
+    for (let i = 0; i < 5; i++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(3, 0.15, 0.4), stairMat);
+      step.position.set(-3, 0.15 + i * 0.15, -3 - i * 0.4);
+      step.castShadow = true;
+      scene.add(step);
+      collidables.push(step);
+    }
+    
+    // Foyer furniture
+    this.addTable(scene, 0, 0, 0);
+    this.addCandle(scene, 0.4, 0.73, 0);
+    
+    // Coat rack (simple vertical)
+    const rackPole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.0, 8), this.mats.wood);
+    rackPole.position.set(4, 1, 3.5);
+    scene.add(rackPole);
+    
+    // Welcome note
+    this.addNote(scene, interactables, 0, 0.74, 0.3, 0);
+    
+    // Foyer mirror
+    this.addMirror(scene, interactables, -5.7, 1.2, 0, 1.2, 2.0, Math.PI / 2);
+    
+    // Door to library
+    this.addDoor(scene, interactables, collidables, -1, 0, -4.7, 0, 'door_foyer_library');
+    
+    // Exit door (final choice)
+    const exitDoor = new THREE.Mesh(
+      new THREE.BoxGeometry(1.0, 2.2, 0.15),
+      new THREE.MeshStandardMaterial({ color: 0x0f0808, roughness: 0.9 })
+    );
+    exitDoor.position.set(3, 1.1, 4.8);
+    scene.add(exitDoor);
+    collidables.push(exitDoor);
+    
+    // ============================================================
+    // CORRIDOR
+    // ============================================================
+    this.addRoom(scene, collidables, 0, 0, -10, 4, 3.0, 10);
+    this.addCandle(scene, -1.5, 0.73, -7);
+    this.addCandle(scene, 1.5, 0.73, -12);
+    this.addNote(scene, interactables, 1.5, 0.74, -8, 1);
+    
+    // Wall sconces (decorative)
+    [-6, -9, -12, -15].forEach(z => {
+      const sconce = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.3, 0.15), this.mats.metal);
+      sconce.position.set(-1.7, 2.0, z);
+      scene.add(sconce);
+      this.addCandle(scene, -1.7, 2.1, z);
+    });
+    
+    // Picture frames on walls
+    for (let i = 0; i < 4; i++) {
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.8, 0.05),
+        new THREE.MeshStandardMaterial({ color: 0x0a0508, roughness: 0.7 })
+      );
+      frame.position.set(1.7, 1.8, -7 - i * 2.5);
+      frame.rotation.y = -Math.PI / 2;
+      scene.add(frame);
+      
+      const painting = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.5, 0.7),
+        new THREE.MeshStandardMaterial({
+          color: [0x1a0808, 0x080a1a, 0x0a1208, 0x1a1008][i],
+          roughness: 0.9
+        })
+      );
+      painting.position.set(1.68, 1.8, -7 - i * 2.5);
+      painting.rotation.y = -Math.PI / 2;
+      scene.add(painting);
+    }
+    
+    // ============================================================
+    // LIBRARY (Room 2)
+    // ============================================================
+    this.addRoom(scene, collidables, -6, 0, -20, 10, 3.5, 12);
+    
+    // Bookshelves
+    this.addBookshelf(scene, collidables, -10.3, 0, -16, Math.PI / 2);
+    this.addBookshelf(scene, collidables, -10.3, 0, -19, Math.PI / 2);
+    this.addBookshelf(scene, collidables, -10.3, 0, -22, Math.PI / 2);
+    this.addBookshelf(scene, collidables, -2.3, 0, -16, -Math.PI / 2);
+    this.addBookshelf(scene, collidables, -2.3, 0, -19, -Math.PI / 2);
+    
+    this.addFireplace(scene, -6, 0, -25.5);
+    this.addTable(scene, -6, 0, -20, 1.8, 1.0);
+    this.addChair(scene, -5, 0, -22, 0.3);
+    this.addChair(scene, -7, 0, -22, -0.3);
+    
+    this.addCandle(scene, -5.7, 0.73, -20);
+    this.addCandle(scene, -6.3, 0.73, -20);
+    
+    // Library notes (3 notes)
+    this.addNote(scene, interactables, -6.5, 0.74, -20.3, 2);
+    this.addNote(scene, interactables, -9, 0.74, -18, 3);
+    this.addNote(scene, interactables, -5.5, 0.74, -24, 4);
+    
+    // Library mirror
+    this.addMirror(scene, interactables, -6, 1.5, -25.4, 1.0, 1.6, 0);
+    
+    // Key pickup
+    this.addPickupItem(scene, interactables, -6, 0.78, -19.8, 'key',
+      '[E] Take the key', 'An ornate key. It feels heavier than it should.');
+    
+    // Door to bedroom corridor
+    this.addDoor(scene, interactables, collidables, -7, 0, -15.2, Math.PI, 'door_library_bed');
+    
+    // ============================================================
+    // BEDROOM CORRIDOR
+    // ============================================================
+    this.addRoom(scene, collidables, 4, 0, -22, 6, 3.0, 8);
+    this.addCandle(scene, 4, 0.73, -20);
+    this.addNote(scene, interactables, 4.5, 0.74, -21, 5);
+    
+    // ============================================================
+    // BEDROOM (Room 3)
+    // ============================================================
+    this.addRoom(scene, collidables, 4, 0, -32, 8, 3.0, 10);
+    
+    this.addBed(scene, 4, 0, -36);
+    this.addTable(scene, 6, 0, -30, 0.7, 0.5);
+    this.addChair(scene, 2, 0, -30.5, 0.2);
+    this.addChandelier(scene, 4, 2.8, -32);
+    this.addCandle(scene, 6.3, 0.73, -30);
+    
+    this.addNote(scene, interactables, 6, 0.74, -29.8, 6);
+    this.addNote(scene, interactables, 3.5, 0.74, -37, 7);
+    
+    // Wardrobe
+    const wardrobe = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.0, 0.5), this.mats.wood);
+    wardrobe.position.set(7.3, 1.0, -34);
+    wardrobe.castShadow = true;
+    scene.add(wardrobe);
+    collidables.push(wardrobe);
+    
+    // Curtains
+    const curtainMat = this.mats.cloth.clone();
+    [-0.3, 0.3].forEach(x => {
+      const curtain = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 2.2), curtainMat);
+      curtain.position.set(x + 7.5, 1.5, -36.5);
+      curtain.rotation.y = Math.PI / 2;
+      scene.add(curtain);
+    });
+    
+    // Mirror in bedroom
+    this.addMirror(scene, interactables, 0.3, 1.0, -31, 0.8, 1.4, Math.PI / 2);
+    
+    // Bedroom to basement door
+    this.addDoor(scene, interactables, collidables, 3, 0, -36.8, 0, 'door_bed_basement', true, () => {
+      NarrativeSystem.showNarrative("The door groans open, revealing stone steps descending into darkness...", 4000);
+      NarrativeSystem.showChapter(2);
+    });
+    
+    // ============================================================
+    // BASEMENT STAIRS + ROOM (Room 4)
+    // ============================================================
+    this.addRoom(scene, collidables, 0, -2, -45, 8, 2.8, 12);
+    
+    // Stairs down
+    for (let i = 0; i < 8; i++) {
+      const step = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.15, 0.45),
+        new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 1.0 }));
+      step.position.set(0, -i * 0.25, -38 - i * 0.45);
+      step.castShadow = true;
+      scene.add(step);
+      collidables.push(step);
+    }
+    
+    // Basement atmosphere — extra dark
+    const basementFogPlane = new THREE.Mesh(
+      new THREE.BoxGeometry(8, 2.8, 12),
+      new THREE.MeshStandardMaterial({ color: 0x000005, transparent: true, opacity: 0.3 })
+    );
+    basementFogPlane.position.set(0, -0.6, -45);
+    scene.add(basementFogPlane);
+    
+    this.addCandle(scene, 2, -1.9, -43);
+    this.addNote(scene, interactables, -2.5, -1.97, -44, 8);
+    this.addNote(scene, interactables, 1, -1.97, -50, 9);
+    
+    // Ritual circle (drawn on floor)
+    const circleMat = new THREE.MeshStandardMaterial({
+      color: 0x3a0000, emissive: 0x1a0000, emissiveIntensity: 0.5, roughness: 1.0
+    });
+    const circle = new THREE.Mesh(new THREE.RingGeometry(1.5, 1.6, 32), circleMat);
+    circle.rotation.x = -Math.PI / 2;
+    circle.position.set(0, -1.99, -50);
+    scene.add(circle);
+    
+    // Pentagram lines
+    for (let i = 0; i < 5; i++) {
+      const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      const nextAngle = ((i + 2) / 5) * Math.PI * 2 - Math.PI / 2;
+      const line = new THREE.Mesh(
+        new THREE.BoxGeometry(0.02, 0.005, 1.5),
+        circleMat
+      );
+      const cx = (Math.cos(angle) + Math.cos(nextAngle)) / 2 * 1.3;
+      const cz = (Math.sin(angle) + Math.sin(nextAngle)) / 2 * 1.3;
+      const ang = Math.atan2(Math.sin(nextAngle) - Math.sin(angle), Math.cos(nextAngle) - Math.cos(angle));
+      line.position.set(cx, -1.99, -50 + cz);
+      line.rotation.y = -ang;
+      scene.add(line);
+    }
+    
+    // Candle pickup in basement
+    this.addPickupItem(scene, interactables, 0, -1.97, -50, 'candle',
+      '[E] Take the candle', 'An old candle. Still warm somehow.');
+    
+    // Basement to attic door (at top of stairs)
+    this.addDoor(scene, interactables, collidables, -1, -2, -42, Math.PI, 'door_basement_attic', false, () => {
+      NarrativeSystem.showNarrative("The basement reveals a hidden passage upward...", 3000);
+    });
+    
+    // ============================================================
+    // ATTIC (Room 5)
+    // ============================================================
+    this.addRoom(scene, collidables, -8, 4, -30, 8, 2.5, 10);
+    
+    // Slanted ceiling (attic feel)
+    const slopeMat = new THREE.MeshStandardMaterial({ color: 0x0a0808, roughness: 1.0 });
+    const slope1 = new THREE.Mesh(new THREE.BoxGeometry(8, 0.15, 10), slopeMat);
+    slope1.position.set(-8, 5.7, -30);
+    slope1.rotation.z = -0.25;
+    scene.add(slope1);
+    
+    // Old boxes
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, roughness: 1.0 });
+    [[-10, 4, -28], [-9, 4, -30], [-6, 4, -32], [-7, 4, -26]].forEach(([bx, by, bz]) => {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.5), boxMat);
+      box.position.set(bx, by + 0.25, bz);
+      box.castShadow = true;
+      scene.add(box);
+      collidables.push(box);
+    });
+    
+    // Rocking chair (ominous)
+    this.addChair(scene, -8, 4, -32, Math.PI);
+    
+    this.addCandle(scene, -8, 4.73, -30);
+    
+    this.addNote(scene, interactables, -8.5, 4.74, -28, 10);
+    
+    // Mirror shard pickup
+    this.addPickupItem(scene, interactables, -7.5, 4.74, -32, 'shard',
+      '[E] Pick up mirror shard', 'A shard from a shattered mirror. Something stares back from within it.');
+    
+    // Dusty covering sheets
+    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(2, 1.5), 
+      new THREE.MeshStandardMaterial({ color: 0x151210, roughness: 1.0, side: THREE.DoubleSide }));
+    sheet.position.set(-10, 4.7, -33);
+    sheet.rotation.x = -0.2;
+    scene.add(sheet);
+    
+    // ============================================================
+    // MIRROR ROOM (Room 6) — Final room
+    // ============================================================
+    this.addRoom(scene, collidables, 0, 0, -60, 10, 4.0, 10);
+    
+    // Multiple mirrors on all walls
+    this.addMirror(scene, interactables, -4.7, 1.5, -60, 1.5, 2.5, Math.PI / 2);
+    this.addMirror(scene, interactables, 4.7, 1.5, -60, 1.5, 2.5, -Math.PI / 2);
+    this.addMirror(scene, interactables, 0, 1.5, -64.7, 2.0, 2.8, 0);
+    
+    // THE FINAL MIRROR — interactive
+    this.addMirror(scene, interactables, 0, 1.5, -55.3, 2.4, 3.0, Math.PI, 'final');
+    
+    // Mirror room lighting — very dim, eerie blue
+    const mirrorLight = new THREE.PointLight(0x334466, 0.8, 12, 2);
+    mirrorLight.position.set(0, 3.5, -60);
+    scene.add(mirrorLight);
+    mirrorLight._baseIntensity = 0.8;
+    GameEngine.pointLights.push(mirrorLight);
+    
+    // Candles in ring around center
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      this.addCandle(scene, Math.cos(angle) * 2, 0.15, -60 + Math.sin(angle) * 2);
+    }
+    
+    // Final note
+    this.addNote(scene, interactables, 0, 0.74, -57, 11);
+    
+    // Corridor connecting foyer to library
+    this.addRoom(scene, collidables, -3, 0, -14, 4, 3.0, 4);
+    
+    // Long corridor to mirror room
+    this.addRoom(scene, collidables, 0, 0, -50, 4, 3.2, 18);
+    this.addCandle(scene, -1.5, 0.73, -46);
+    this.addCandle(scene, 1.5, 0.73, -53);
+    this.addNote(scene, interactables, 0, 0.74, -48, 9);
+    
+    // Attic connecting corridor
+    this.addRoom(scene, collidables, -4, 4, -35, 4, 2.5, 8);
+    this.addCandle(scene, -4, 4.73, -34);
+    
+    // Set initial player position
+    GameEngine.camera.position.set(0, 1.7, 3.5);
+  }
+};
+
+// ============================================================
+// ENEMY SYSTEM — Ghost AI
+// ============================================================
+const EnemySystem = {
+  ghosts: [],
+  
+  init(scene) {
+    // Three ghost entities
+    const ghostDefs = [
+      { id: 0, spawnPos: new THREE.Vector3(0, 0.5, -12), triggerZ: -8, chapter: 0, name: 'Corridor Ghost' },
+      { id: 1, spawnPos: new THREE.Vector3(-6, 0.5, -22), triggerZ: -15, chapter: 1, name: 'Library Ghost' },
+      { id: 2, spawnPos: new THREE.Vector3(4, 0.5, -35), triggerZ: -28, chapter: 2, name: 'Bedroom Ghost' },
+    ];
+    
+    ghostDefs.forEach(def => {
+      const ghost = this.createGhost(scene, def);
+      this.ghosts.push(ghost);
+    });
+  },
+
+  createGhost(scene, def) {
+    const group = new THREE.Group();
+    
+    // Ghost body — humanoid silhouette
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0x8899cc,
+      transparent: true,
+      opacity: 0,
+      emissive: 0x4455aa,
+      emissiveIntensity: 1.5,
+      roughness: 0.5,
+      wireframe: false,
+      depthWrite: false
+    });
+    
+    // Torso
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.3, 1.2, 8), bodyMat.clone());
+    torso.position.y = 1.0;
+    group.add(torso);
+    
+    // Head
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), bodyMat.clone());
+    head.position.y = 1.85;
+    head.scale.y = 1.2;
+    group.add(head);
+    
+    // Arms (drooping)
+    [-0.35, 0.35].forEach(x => {
+      const arm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.04, 0.9, 6),
+        bodyMat.clone()
+      );
+      arm.position.set(x, 0.9, 0);
+      arm.rotation.z = x > 0 ? -0.4 : 0.4;
+      group.add(arm);
+    });
+    
+    // Ghostly tail / wisp
+    const tail = new THREE.Mesh(
+      new THREE.ConeGeometry(0.25, 0.8, 8),
+      bodyMat.clone()
+    );
+    tail.position.y = 0.2;
+    tail.rotation.z = Math.PI;
+    group.add(tail);
+    
+    // Eye glow
+    [-0.08, 0.08].forEach(x => {
+      const eye = new THREE.Mesh(
+        new THREE.SphereGeometry(0.03, 6, 6),
+        new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          emissive: 0xffffff,
+          emissiveIntensity: 5,
+          transparent: true,
+          opacity: 0
+        })
+      );
+      eye.position.set(x, 1.88, 0.18);
+      eye._isEye = true;
+      group.add(eye);
+    });
+    
+    group.position.copy(def.spawnPos);
+    group.visible = false;
+    scene.add(group);
+    
+    return {
+      ...def,
+      group,
+      mats: group.children.map(c => c.material).filter(Boolean),
+      active: false,
+      triggered: false,
+      phase: 'dormant', // dormant, appearing, chasing, retreating
+      opacity: 0,
+      targetOpacity: 0,
+      appearTime: 0,
+      chaseTimer: 0,
+    };
+  },
+
+  triggerGhost(ghost, playerPos) {
+    if (ghost.triggered) return;
+    ghost.triggered = true;
+    ghost.active = true;
+    ghost.phase = 'appearing';
+    ghost.group.visible = true;
+    ghost.appearTime = Date.now();
+    GameState.ghostNear = true;
+    
+    document.getElementById('ghost-indicator').classList.add('active');
+    
+    NarrativeSystem.showNarrative("Something is here...", 3000);
+    AudioEngine.playWhisper();
+    
+    // Jumpscare after brief appearance
+    setTimeout(() => {
+      if (ghost.active) {
+        GameEngine.triggerJumpscare('ghost');
+      }
+    }, 2500);
+  },
+
+  update(dt, playerPos) {
+    // Check trigger zones
+    this.ghosts.forEach(ghost => {
+      if (!ghost.triggered && playerPos.z < ghost.triggerZ && GameState.chapter >= ghost.chapter) {
+        this.triggerGhost(ghost, playerPos);
+      }
+    });
+    
+    // Update active ghosts
+    this.ghosts.forEach(ghost => {
+      if (!ghost.active) return;
+      
+      const timeSince = (Date.now() - ghost.appearTime) / 1000;
+      
+      if (ghost.phase === 'appearing') {
+        ghost.targetOpacity = Math.min(0.7, timeSince * 0.4);
+        ghost.chaseTimer += dt;
+        
+        if (ghost.chaseTimer > 1.5) {
+          ghost.phase = 'chasing';
+        }
+      } else if (ghost.phase === 'chasing') {
+        ghost.chaseTimer += dt;
+        
+        // Move toward player
+        const dir = playerPos.clone().sub(ghost.group.position);
+        dir.y = 0;
+        if (dir.length() > 0.5) {
+          dir.normalize();
+          ghost.group.position.add(dir.multiplyScalar(dt * 1.5));
+          ghost.group.rotation.y = Math.atan2(dir.x, dir.z);
+        }
+        
+        // Float up/down
+        ghost.group.position.y = 0.5 + Math.sin(Date.now() * 0.002) * 0.2;
+        
+        // Check if close to player
+        const dist = ghost.group.position.distanceTo(playerPos);
+        if (dist < 1.5) {
+          GameEngine.triggerJumpscare('close');
+          ghost.phase = 'retreating';
+        }
+        
+        // Chase for limited time then retreat
+        if (ghost.chaseTimer > 8) ghost.phase = 'retreating';
+        
+        ghost.targetOpacity = 0.6 + Math.sin(Date.now() * 0.01) * 0.1;
+      } else if (ghost.phase === 'retreating') {
+        ghost.targetOpacity = Math.max(0, ghost.targetOpacity - dt * 0.5);
+        if (ghost.targetOpacity <= 0) {
+          ghost.active = false;
+          ghost.group.visible = false;
+          GameState.ghostNear = false;
+          document.getElementById('ghost-indicator').classList.remove('active');
+        }
+      }
+      
+      // Smoothly update opacity
+      ghost.opacity += (ghost.targetOpacity - ghost.opacity) * dt * 3;
+      ghost.group.children.forEach(child => {
+        if (child.material) {
+          child.material.opacity = child._isEye ? ghost.opacity * 1.5 : ghost.opacity;
+        }
+      });
+      
+      // Flickering
+      if (ghost.active) {
+        const flicker = 0.85 + Math.sin(Date.now() * 0.02) * 0.1 + Math.random() * 0.05;
+        ghost.group.children.forEach(child => {
+          if (child.material && child.material.emissiveIntensity !== undefined && !child._isEye) {
+            child.material.emissiveIntensity = 1.5 * flicker;
+          }
+        });
+      }
+    });
+    
+    // Animate floating items
+    GameEngine.interactables.forEach(item => {
+      if (item.mesh && item.mesh._floatBase !== undefined) {
+        item.mesh.position.y = item.mesh._floatBase + Math.sin(Date.now() * 0.002 + item.mesh._floatPhase) * 0.08;
+        item.mesh.rotation.y += 0.01;
+      }
+    });
+  }
+};
+
+// ============================================================
+// STORY TRIGGERS — Location-based narrative events
+// ============================================================
+const StoryTriggers = {
+  triggers: [
+    {
+      id: 'corridor_enter',
+      z: -6, x_range: [-2, 2],
+      chapter: 1,
+      triggered: false,
+      action: (pos) => {
+        NarrativeSystem.showChapter(1);
+        NarrativeSystem.showNarrative("The manor swallows the sound of my footsteps. Something watches from the dark.", 4000);
+      }
+    },
+    {
+      id: 'library_enter',
+      z: -16, x_range: [-11, -1],
+      triggered: false,
+      action: () => {
+        NarrativeSystem.showNarrative("Hundreds of books. Every spine dark. A fireplace that should be cold. It isn't.", 4000);
+        setTimeout(() => AudioEngine.playCreak(), 2000);
+      }
+    },
+    {
+      id: 'basement_enter',
+      z: -43, x_range: [-4, 4],
+      triggered: false,
+      action: () => {
+        NarrativeSystem.showChapter(2);
+        NarrativeSystem.showNarrative("The air below is cold and wrong. Something ancient happened here.", 4000);
+        document.getElementById('grain').style.opacity = '0.07';
+      }
+    },
+    {
+      id: 'ritual_circle',
+      z: -49, x_range: [-3, 3],
+      triggered: false,
+      action: () => {
+        NarrativeSystem.showNarrative("A ritual circle. Dried. Old. The wax candles around it... they're still warm.", 4000);
+        GameState.sanity -= 15;
+        setTimeout(() => AudioEngine.playWhisper(), 1500);
+        setTimeout(() => AudioEngine.playWhisper(), 3000);
+      }
+    },
+    {
+      id: 'mirror_room_enter',
+      z: -57, x_range: [-5, 5],
+      triggered: false,
+      action: () => {
+        NarrativeSystem.showChapter(3);
+        NarrativeSystem.showNarrative("The Mirror Room. Every reflection shows something that isn't quite me.", 4000);
+        GameState.sanity -= 20;
+        AudioEngine.playHeartbeatContinuous(0.6);
+        setTimeout(() => {
+          AudioEngine.stopHeartbeat();
+        }, 8000);
+      }
+    },
+    {
+      id: 'final_mirror_approach',
+      z: -56, x_range: [-2, 2],
+      triggered: false,
+      action: () => {
+        NarrativeSystem.showNarrative("The largest mirror. Something on the other side... is smiling at me.", 5000);
+        GameEngine.triggerJumpscare('mirror');
+      }
+    }
+  ],
+
+  update(playerPos) {
+    this.triggers.forEach(trigger => {
+      if (trigger.triggered) return;
+      if (playerPos.z < trigger.z &&
+          playerPos.x >= trigger.x_range[0] &&
+          playerPos.x <= trigger.x_range[1]) {
+        trigger.triggered = true;
+        trigger.action(playerPos);
+      }
+    });
+  }
+};
+
+// ============================================================
+// UI CONTROLLER
+// ============================================================
+const UIController = {
+  init() {
+    // Main menu buttons
+    document.getElementById('btn-start').addEventListener('click', () => {
+      AudioEngine.init();
+      this.startGame();
+    });
+    document.getElementById('btn-controls').addEventListener('click', () => {
+      document.getElementById('controls-modal').classList.add('visible');
+    });
+    document.getElementById('btn-close-controls').addEventListener('click', () => {
+      document.getElementById('controls-modal').classList.remove('visible');
+    });
+    document.getElementById('btn-controls-pause').addEventListener('click', () => {
+      document.getElementById('controls-modal').classList.add('visible');
+    });
+    document.getElementById('btn-resume').addEventListener('click', () => {
+      this.resumeGame();
+    });
+    document.getElementById('btn-quit').addEventListener('click', () => {
+      location.reload();
+    });
+    document.getElementById('note-close').addEventListener('click', () => {
+      NarrativeSystem.closeNote();
+    });
+    document.getElementById('btn-ending-restart').addEventListener('click', () => {
+      location.reload();
+    });
+    
+    // Cursor
+    document.addEventListener('mousemove', (e) => {
+      document.getElementById('cursor').style.left = e.clientX + 'px';
+      document.getElementById('cursor').style.top = e.clientY + 'px';
+      document.getElementById('cursor-dot').style.left = e.clientX + 'px';
+      document.getElementById('cursor-dot').style.top = e.clientY + 'px';
+    });
+    
+    // Menu background animation
+    this.animateMenuBg();
+  },
+
+  animateMenuBg() {
+    const canvas = document.getElementById('menu-bg-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    const particles = [];
+    for (let i = 0; i < 80; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: Math.random() * 1.5 + 0.5,
+        speed: Math.random() * 0.3 + 0.05,
+        opacity: Math.random() * 0.4 + 0.1,
+        drift: (Math.random() - 0.5) * 0.2
+      });
+    }
+    
+    let t = 0;
+    const draw = () => {
+      if (GameState.phase !== 'MENU') return;
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Dark gradient bg
+      const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      grad.addColorStop(0, '#000008');
+      grad.addColorStop(0.5, '#05000f');
+      grad.addColorStop(1, '#000000');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Fog wisps
+      for (let i = 0; i < 3; i++) {
+        const wispX = (Math.sin(t * 0.0003 + i * 2) * 0.5 + 0.5) * canvas.width;
+        const wispY = canvas.height * (0.3 + i * 0.2) + Math.sin(t * 0.0005 + i) * 30;
+        const wispGrad = ctx.createRadialGradient(wispX, wispY, 0, wispX, wispY, 300);
+        wispGrad.addColorStop(0, `rgba(20,10,40,${0.15 + Math.sin(t * 0.001 + i) * 0.05})`);
+        wispGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = wispGrad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      
+      // Floating particles (dust/fireflies)
+      particles.forEach(p => {
+        p.y -= p.speed;
+        p.x += p.drift;
+        if (p.y < -5) { p.y = canvas.height + 5; p.x = Math.random() * canvas.width; }
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(200,184,154,${p.opacity * (0.5 + Math.sin(t * 0.002 + p.x) * 0.5)})`;
+        ctx.fill();
+      });
+      
+      // Vignette
+      const vign = ctx.createRadialGradient(
+        canvas.width/2, canvas.height/2, canvas.height * 0.2,
+        canvas.width/2, canvas.height/2, canvas.height * 0.8
+      );
+      vign.addColorStop(0, 'rgba(0,0,0,0)');
+      vign.addColorStop(1, 'rgba(0,0,0,0.8)');
+      ctx.fillStyle = vign;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      t++;
+      requestAnimationFrame(draw);
+    };
+    draw();
+  },
+
+  fadeToBlack(cb, duration = 1500) {
+    const fade = document.getElementById('black-fade');
+    fade.classList.add('fade-in');
+    setTimeout(() => {
+      if (cb) cb();
+    }, duration);
+  },
+
+  fadeFromBlack(duration = 1500) {
+    const fade = document.getElementById('black-fade');
+    setTimeout(() => {
+      fade.classList.remove('fade-in');
+    }, 200);
+  },
+
+  startGame() {
+    const menu = document.getElementById('main-menu');
+    const loading = document.getElementById('loading-screen');
+    
+    this.fadeToBlack(() => {
+      menu.style.display = 'none';
+      loading.style.display = 'flex';
+      GameState.phase = 'LOADING';
+      
+      this.fadeFromBlack();
+      
+      const tips = [
+        "The manor has been empty for 47 years. No one knows why the last resident never left.",
+        "Pay attention to the notes. The truth is written in fear.",
+        "Your flashlight battery depletes over time. Use it wisely.",
+        "Some doors require keys. Explore thoroughly.",
+        "Your sanity is fragile. Darkness and ghosts will erode it.",
+        "There are two endings. Your final choice determines everything."
+      ];
+      
+      let progress = 0;
+      let tipIndex = 0;
+      const bar = document.getElementById('loading-bar');
+      const tip = document.getElementById('loading-tip');
+      
+      const loadInterval = setInterval(() => {
+        progress += Math.random() * 8 + 3;
+        if (progress > 100) progress = 100;
+        bar.style.width = progress + '%';
+        
+        if (progress % 20 < 10) {
+          tipIndex = (tipIndex + 1) % tips.length;
+          tip.textContent = tips[tipIndex];
+        }
+        
+        if (progress >= 100) {
+          clearInterval(loadInterval);
+          setTimeout(() => {
+            this.fadeToBlack(() => {
+              loading.style.display = 'none';
+              this.launchGame();
+            });
+          }, 500);
+        }
+      }, 200);
+    });
+  },
+
+  launchGame() {
+    // Initialize Three.js
+    GameEngine.init();
+    AudioEngine.init();
+    AudioEngine.playAmbience();
+    
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('lock-hint').classList.add('visible');
+    
+    GameState.phase = 'PLAYING';
+    GameState.startTime = Date.now();
+    
+    this.fadeFromBlack(2000);
+    
+    // Show prologue after brief delay
+    setTimeout(() => {
+      NarrativeSystem.showChapter(0);
+      setTimeout(() => {
+        NarrativeSystem.showNarrative("I shouldn't be here. The letter said the manor had been empty for decades. But someone lit these candles...", 5000);
+      }, 3000);
+    }, 3000);
+    
+    // Setup input
+    InputController.init();
+    
+    // Start render loop
+    const loop = () => {
+      requestAnimationFrame(loop);
+      GameEngine.update();
+    };
+    loop();
+  },
+
+  pauseGame() {
+    GameState.paused = true;
+    GameState.phase = 'PAUSED';
+    document.getElementById('pause-menu').classList.add('visible');
+    InputController.unlock();
+  },
+
+  resumeGame() {
+    GameState.paused = false;
+    GameState.phase = 'PLAYING';
+    document.getElementById('pause-menu').classList.remove('visible');
+    document.getElementById('controls-modal').classList.remove('visible');
+  },
+
+  showEnding(type) {
+    const screen = document.getElementById('ending-screen');
+    const title = document.getElementById('ending-title');
+    const text = document.getElementById('ending-text');
+    const label = document.getElementById('ending-label');
+    
+    if (type === 'good') {
+      label.textContent = 'Ending — The Reunion';
+      title.textContent = 'You Stayed';
+      text.textContent = `You looked into the mirror without fear. Without flinching.
+
+For a moment, nothing happened.
+
+Then you saw it — not a monster, not a demon, but something lonely beyond measure. Something that had watched families come and go for over a century, unable to reach them.
+
+You smiled.
+
+It reached through the glass and touched your reflection.
+
+Neither of you were alone anymore.
+
+The manor is no longer empty.
+
+It never will be again.`;
+    } else {
+      label.textContent = 'Ending — The Escape';
+      title.textContent = 'You Ran';
+      text.textContent = `You found the front door. You pushed it open. You ran.
+
+The cold night air hit your face. You didn't look back.
+
+You heard it, though — behind you, from every window, from every mirror in the manor — a sound that wasn't quite weeping and wasn't quite screaming.
+
+It was the sound of something waiting.
+
+You told yourself it would stop.
+
+It never stopped.
+
+Wherever you went, whatever mirror you looked into, you saw the manor behind your reflection.
+
+And in the manor, you saw it. Still waiting.
+
+It had learned your face.
+
+It was very patient.`;
+    }
+    
+    screen.classList.add('visible');
+    this.fadeFromBlack(2000);
+    
+    // Stop all audio
+    AudioEngine.stopHeartbeat();
+    
+    if (type === 'good') {
+      // Peaceful low tone
+      if (AudioEngine.ctx) {
+        const osc = AudioEngine.ctx.createOscillator();
+        const gain = AudioEngine.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 110;
+        gain.gain.setValueAtTime(0, AudioEngine.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.2, AudioEngine.ctx.currentTime + 3);
+        gain.gain.linearRampToValueAtTime(0, AudioEngine.ctx.currentTime + 12);
+        osc.connect(gain);
+        gain.connect(AudioEngine.masterGain);
+        osc.start();
+        osc.stop(AudioEngine.ctx.currentTime + 13);
+      }
+    } else {
+      // Dissonant horror chord
+      if (AudioEngine.ctx) {
+        [60, 80, 90, 120].forEach((freq, i) => {
+          setTimeout(() => {
+            const osc = AudioEngine.ctx.createOscillator();
+            const gain = AudioEngine.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, AudioEngine.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.1, AudioEngine.ctx.currentTime + 1);
+            gain.gain.linearRampToValueAtTime(0, AudioEngine.ctx.currentTime + 10);
+            osc.connect(gain);
+            gain.connect(AudioEngine.masterGain);
+            osc.start();
+            osc.stop(AudioEngine.ctx.currentTime + 11);
+          }, i * 500);
+        });
+      }
+    }
+  }
+};
+
+// ============================================================
+// INPUT CONTROLLER
+// ============================================================
+const InputController = {
+  isLocked: false,
+  sensitivity: 0.002,
+  
+  init() {
+    document.addEventListener('click', (e) => this.onClick(e));
+    document.addEventListener('keydown', (e) => this.onKeyDown(e));
+    document.addEventListener('keyup', (e) => this.onKeyUp(e));
+    document.addEventListener('mousemove', (e) => this.onMouseMove(e));
+    
+    document.addEventListener('pointerlockchange', () => {
+      this.isLocked = document.pointerLockElement === document.getElementById('game-canvas');
+      GameState.isLocked = this.isLocked;
+      document.getElementById('lock-hint').classList.toggle('visible', !this.isLocked && GameState.phase === 'PLAYING');
+    });
+  },
+
+  onClick(e) {
+    if (GameState.phase === 'PLAYING' && !this.isLocked) {
+      document.getElementById('game-canvas').requestPointerLock();
+      AudioEngine.init();
+    }
+  },
+
+  onKeyDown(e) {
+    if (GameState.phase === 'NOTE') {
+      if (e.code === 'KeyE' || e.code === 'Escape') {
+        NarrativeSystem.closeNote();
+      }
+      return;
+    }
+    
+    if (e.code === 'Escape') {
+      if (GameState.paused) UIController.resumeGame();
+      else if (GameState.phase === 'PLAYING') UIController.pauseGame();
+      return;
+    }
+    
+    if (GameState.paused) return;
+    
+    switch (e.code) {
+      case 'KeyW': case 'ArrowUp':    GameEngine.moveDir.forward = true; break;
+      case 'KeyS': case 'ArrowDown':  GameEngine.moveDir.backward = true; break;
+      case 'KeyA': case 'ArrowLeft':  GameEngine.moveDir.left = true; break;
+      case 'KeyD': case 'ArrowRight': GameEngine.moveDir.right = true; break;
+      case 'KeyF':
+        GameState.flashlightOn = !GameState.flashlightOn;
+        AudioEngine.playCreak();
+        break;
+      case 'KeyE':
+        if (GameState.phase === 'PLAYING' && this.isLocked) {
+          GameEngine.interact();
+        }
+        break;
+    }
+  },
+
+  onKeyUp(e) {
+    switch (e.code) {
+      case 'KeyW': case 'ArrowUp':    GameEngine.moveDir.forward = false; break;
+      case 'KeyS': case 'ArrowDown':  GameEngine.moveDir.backward = false; break;
+      case 'KeyA': case 'ArrowLeft':  GameEngine.moveDir.left = false; break;
+      case 'KeyD': case 'ArrowRight': GameEngine.moveDir.right = false; break;
+    }
+  },
+
+  onMouseMove(e) {
+    if (!this.isLocked || GameState.paused || GameState.noteOpen) return;
+    
+    const dx = e.movementX || 0;
+    const dy = e.movementY || 0;
+    
+    GameEngine.yaw -= dx * this.sensitivity;
+    GameEngine.pitch -= dy * this.sensitivity;
+    GameEngine.pitch = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, GameEngine.pitch));
+  },
+
+  unlock() {
+    if (document.exitPointerLock) document.exitPointerLock();
+  }
+};
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  UIController.init();
+});
+
+/*
+============================================================
+HOW TO PLAY
+============================================================
+
+CONTROLS:
+  WASD / Arrow Keys  — Move through the manor
+  Mouse              — Look around (requires pointer lock)
+  Click              — Lock mouse cursor to game window
+  E                  — Interact with objects, read notes, open doors
+  F                  — Toggle flashlight on/off
+  ESC                — Pause menu
+
+OBJECTIVES:
+  - Explore Blackwood Manor's 6 rooms
+  - Collect all 12 notes to piece together the story
+  - Find the iron key in the library to unlock the basement
+  - Descend to the basement and discover the ritual
+  - Reach the Mirror Room for the climax
+  - Make your final choice: look into the mirror or flee
+
+SURVIVAL TIPS:
+  - Your flashlight battery drains continuously — use it wisely
+  - Your sanity decreases in darkness and near ghosts
+  - Low sanity causes visual distortions and hallucinations
+  - Ghosts are scripted events — stay calm, they retreat
+  - The inventory holds 3 items (key, candle, mirror shard)
+
+ENDINGS:
+  - GOOD ENDING "You Stayed": Look into the final mirror [E]
+  - BAD ENDING "You Ran": Find the front door and leave
+
+SYSTEM REQUIREMENTS:
+  - Chrome 90+ or Firefox 88+ (desktop)
+  - WebGL 2.0 capable GPU
+  - Headphones strongly recommended
+  - Best experienced in a dark room
+
+============================================================
+CREDITS
+============================================================
+
+"The Last Resident of Blackwood Manor"
+A Browser-Based Psychological Horror Experience
+
+Built with:
+  Three.js r168 (https://threejs.org)
+  Howler.js 2.2.4 (https://howlerjs.com)
+  Web Audio API (native)
+  Pure HTML5 + CSS3 + Vanilla JavaScript
+
+All geometry is procedurally generated.
+All audio is synthesized via Web Audio API.
+No external assets were used.
+
+Design & Development: AAA Horror Demo
+Estimated Play Time: 12-18 minutes
+Recommended: Headphones · Darkness · Alone
+
+"The manor remembers everyone who entered.
+ It has never forgotten a single face."
+
+============================================================
+*/
+</script>
+</body>
+</html>
